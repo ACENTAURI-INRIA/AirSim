@@ -16,6 +16,10 @@
 #include "physics/Environment.hpp"
 #include "api/WorldSimApiBase.hpp"
 
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 namespace msr { namespace airlib {
 
 //common methods for RCP clients of different vehicles
@@ -129,6 +133,9 @@ protected:
 private:
     struct impl;
     std::unique_ptr<impl> pimpl_;
+
+    std::string settings_text_;
+    std::string getSimMode();
 };
 
 }} //namespace
