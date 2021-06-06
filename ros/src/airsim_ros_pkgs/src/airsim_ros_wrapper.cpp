@@ -91,7 +91,7 @@ void AirsimROSWrapper::initialize_airsim()
         airsim_client_images_.confirmConnection();
         airsim_client_lidar_.confirmConnection();
 
-	
+
         for (const auto& vehicle_name_ptr_pair : vehicle_name_ptr_map_)
     	{
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
@@ -221,6 +221,9 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
             drone->vel_cmd_world_frame_sub = nh_private_.subscribe<airsim_ros_pkgs::VelCmd>(curr_vehicle_name + "/vel_cmd_world_frame", 1,
                 boost::bind(&AirsimROSWrapper::vel_cmd_world_frame_cb, this, _1, vehicle_ros->vehicle_name));
 
+            drone->rpy_throttle_cmd_sub = nh_private_.subscribe<airsim_ros_pkgs::RPYThrottleCmd>(curr_vehicle_name + "/rpy_throttle_cmd", 1,
+                boost::bind(&AirsimROSWrapper::rpy_throttle_cmd_cb, this, _1, vehicle_ros->vehicle_name));
+
             drone->takeoff_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Takeoff::Request, airsim_ros_pkgs::Takeoff::Response>(curr_vehicle_name + "/takeoff",
                 boost::bind(&AirsimROSWrapper::takeoff_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
             drone->land_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Land::Request, airsim_ros_pkgs::Land::Response>(curr_vehicle_name + "/land",
@@ -251,7 +254,7 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
             for (const auto& curr_capture_elem : camera_setting.capture_settings)
             {
                 auto& capture_setting = curr_capture_elem.second;
-		
+
                 // todo why does AirSimSettings::loadCaptureSettings calls AirSimSettings::initializeCaptureSettings()
                 // which initializes default capture settings for _all_ NINE msr::airlib::ImageCaptureBase::ImageType
                 if ( !(std::isnan(capture_setting.fov_degrees)) )
@@ -719,6 +722,21 @@ void AirsimROSWrapper::vel_cmd_all_world_frame_cb(const airsim_ros_pkgs::VelCmd&
             drone->has_vel_cmd = true;
 	}
     }
+}
+
+// void AirsimROSWrapper::rpy_throttle_cmd__cb(const airsim_ros_pkgs::RPYThrottleCmd& msg, const std::string& vehicle_name)
+void AirsimROSWrapper::rpy_throttle_cmd_cb(const airsim_ros_pkgs::RPYThrottleCmd::ConstPtr& msg, const std::string& vehicle_name)
+{
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+
+    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+
+    drone->rpy_throttle_cmd.roll = msg->roll;
+    drone->rpy_throttle_cmd.pitch = msg->pitch;
+    drone->rpy_throttle_cmd.yaw = msg->yaw;
+    drone->rpy_throttle_cmd.throttle = msg->throttle;
+
+    drone->has_rpy_throttle_cmd = true;
 }
 
 // todo support multiple gimbal commands
@@ -1370,7 +1388,14 @@ void AirsimROSWrapper::update_commands()
                 static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->moveByVelocityAsync(drone->vel_cmd.x, drone->vel_cmd.y, drone->vel_cmd.z, vel_cmd_duration_,
                     msr::airlib::DrivetrainType::MaxDegreeOfFreedom, drone->vel_cmd.yaw_mode, drone->vehicle_name);
             }
+            if (drone->has_rpy_throttle_cmd)
+            {
+                std::lock_guard<std::mutex> guard(drone_control_mutex_);
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->moveByRollPitchYawThrottleAsync(drone->rpy_throttle_cmd.roll, drone->rpy_throttle_cmd.pitch,
+                    drone->rpy_throttle_cmd.yaw, drone->rpy_throttle_cmd.throttle, vel_cmd_duration_, drone->vehicle_name);
+            }
             drone->has_vel_cmd = false;
+            drone->has_rpy_throttle_cmd = false;
         }
         else
         {

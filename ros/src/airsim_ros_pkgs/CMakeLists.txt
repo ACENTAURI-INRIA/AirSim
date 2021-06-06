@@ -54,6 +54,7 @@ add_message_files(
   CarState.msg
   Altimeter.msg
   Environment.msg
+  RPYThrottleCmd.msg
 )
 
 add_service_files(

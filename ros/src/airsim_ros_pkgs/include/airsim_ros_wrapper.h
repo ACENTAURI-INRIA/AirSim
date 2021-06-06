@@ -28,6 +28,7 @@ STRICT_MODE_ON
 #include <airsim_ros_pkgs/CarControls.h>
 #include <airsim_ros_pkgs/CarState.h>
 #include <airsim_ros_pkgs/Environment.h>
+#include <airsim_ros_pkgs/RPYThrottleCmd.h>
 #include <chrono>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -130,7 +131,7 @@ public:
     {
         DRONE,
         CAR,
-	BOTH
+        BOTH
     };
 
     AirsimROSWrapper(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private, const std::string & host_ip);
@@ -211,11 +212,16 @@ private:
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
 
+        ros::Subscriber rpy_throttle_cmd_sub;
+
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
 
         bool has_vel_cmd;
         VelCmd vel_cmd;
+
+        bool has_rpy_throttle_cmd;
+        airsim_ros_pkgs::RPYThrottleCmd rpy_throttle_cmd;
 
         /// Status
         // bool in_air_; // todo change to "status" and keep track of this
@@ -229,6 +235,8 @@ private:
     /// ROS subscriber callbacks
     void vel_cmd_world_frame_cb(const airsim_ros_pkgs::VelCmd::ConstPtr& msg, const std::string& vehicle_name);
     void vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd::ConstPtr& msg, const std::string& vehicle_name);
+
+    void rpy_throttle_cmd_cb(const airsim_ros_pkgs::RPYThrottleCmd::ConstPtr& msg, const std::string& vehicle_name);
 
     void vel_cmd_group_body_frame_cb(const airsim_ros_pkgs::VelCmdGroup& msg);
     void vel_cmd_group_world_frame_cb(const airsim_ros_pkgs::VelCmdGroup& msg);
