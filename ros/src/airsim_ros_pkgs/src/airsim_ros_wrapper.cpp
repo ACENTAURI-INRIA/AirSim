@@ -138,7 +138,8 @@ void AirsimROSWrapper::initialize_ros()
     nh_private_.param("odom_frame_id", odom_frame_id_, odom_frame_id_);
     isENU_ = !(odom_frame_id_ == AIRSIM_ODOM_FRAME_ID);
     nh_private_.param("coordinate_system_enu", isENU_, isENU_);
-    vel_cmd_duration_ = 0.05; // todo rosparam
+    vel_cmd_duration_ = 0.05;
+    nh_private_.param("vel_cmd_duration", vel_cmd_duration_, vel_cmd_duration_);
     // todo enforce dynamics constraints in this node as well?
     // nh_.getParam("max_vert_vel_", max_vert_vel_);
     // nh_.getParam("max_horz_vel", max_horz_vel_)
