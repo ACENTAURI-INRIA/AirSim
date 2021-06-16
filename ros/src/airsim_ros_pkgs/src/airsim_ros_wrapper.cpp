@@ -732,9 +732,18 @@ void AirsimROSWrapper::rpy_throttle_cmd_cb(const airsim_ros_pkgs::RPYThrottleCmd
 
     auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-    drone->rpy_throttle_cmd.roll = msg->roll;
-    drone->rpy_throttle_cmd.pitch = msg->pitch;
-    drone->rpy_throttle_cmd.yaw = msg->yaw;
+    if(odom_frame_id_ == ENU_ODOM_FRAME_ID)
+    {
+        drone->rpy_throttle_cmd.roll = msg->pitch;
+        drone->rpy_throttle_cmd.pitch = msg->roll;
+        drone->rpy_throttle_cmd.yaw = -msg->yaw;
+    }
+    else
+    {
+        drone->rpy_throttle_cmd.roll = msg->roll;
+        drone->rpy_throttle_cmd.pitch = msg->pitch;
+        drone->rpy_throttle_cmd.yaw = msg->yaw;
+    }
     drone->rpy_throttle_cmd.throttle = msg->throttle;
 
     drone->has_rpy_throttle_cmd = true;
@@ -1533,7 +1542,7 @@ void AirsimROSWrapper::append_static_camera_tf(VehicleROS* vehicle_ros, const st
     static_cam_tf_body_msg.transform.translation.y = camera_setting.position.y();
     static_cam_tf_body_msg.transform.translation.z = camera_setting.position.z();
     tf2::Quaternion quat;
-    quat.setRPY(camera_setting.rotation.roll, camera_setting.rotation.pitch, camera_setting.rotation.yaw);
+    quat.setRPY(camera_setting.rotation.roll*M_PI/180.0, camera_setting.rotation.pitch*M_PI/180.0, camera_setting.rotation.yaw*M_PI/180.0);
     static_cam_tf_body_msg.transform.rotation.x = quat.x();
     static_cam_tf_body_msg.transform.rotation.y = quat.y();
     static_cam_tf_body_msg.transform.rotation.z = quat.z();
