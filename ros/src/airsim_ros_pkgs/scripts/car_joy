@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #capture joystick events using ROS and convert to AirSim Car API commands
 #to enable:
@@ -37,6 +37,8 @@ class CarCommandTranslator(object):
         self.park_btn_index = rospy.get_param('~park_button_index', 3)
         self.shift_down_btn_index = rospy.get_param('~shift_down_index', 4)
         self.shift_up_btn_index = rospy.get_param('~shift_up_index', 5)
+        self.throttle_axis_index = rospy.get_param('~throttle_axis_index', 1)
+        self.steering_axis_index = rospy.get_param('~steering_axis_index', 2)
         car_control_topic = rospy.get_param('~car_control_topic', '/airsim_node/drone_1/car_cmd')
 
         self.joy_msg = None
@@ -71,8 +73,8 @@ class CarCommandTranslator(object):
 
         controls = airsim_ros_pkgs.msg.CarControls()
 
-        controls.steering = self.steer_sign * self.max_curvature * joy.axes[2]
-        u = joy.axes[1] * self.throttle_brake_sign
+        controls.steering = self.steer_sign * self.max_curvature * joy.axes[self.steering_axis_index]
+        u = joy.axes[self.throttle_axis_index] * self.throttle_brake_sign
         if u > 0.0:
             controls.throttle = abs(u)
             controls.brake = 0.0
