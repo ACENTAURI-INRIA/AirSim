@@ -55,6 +55,7 @@ STRICT_MODE_ON
 #include <sensor_msgs/Range.h>
 #include <rosgraph_msgs/Clock.h>
 #include <std_srvs/Empty.h>
+#include <std_srvs/SetBool.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -216,6 +217,7 @@ private:
 
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
+        ros::ServiceServer arm_disarm_srvr;
 
         bool has_vel_cmd;
         VelCmd vel_cmd;
@@ -265,6 +267,7 @@ private:
     bool land_group_srv_cb(airsim_ros_pkgs::LandGroup::Request& request, airsim_ros_pkgs::LandGroup::Response& response);
     bool land_all_srv_cb(airsim_ros_pkgs::Land::Request& request, airsim_ros_pkgs::Land::Response& response);
     bool reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, airsim_ros_pkgs::Reset::Response& response);
+    bool arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
 
     /// ROS tf broadcasters
     void publish_camera_tf(const ImageResponse& img_response, const ros::Time& ros_time, const std::string& frame_id, const std::string& child_frame_id);

@@ -97,13 +97,13 @@ void AirsimROSWrapper::initialize_airsim()
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 	    if(curr_vehicle_class == kVehicleClassDrone)
 	    {
-	    	airsim_client_drones_->enableApiControl(true, vehicle_name_ptr_pair.first); // todo expose as rosservice?
-            	airsim_client_drones_->armDisarm(true, vehicle_name_ptr_pair.first); // todo exposes as rosservice?
+            airsim_client_drones_->enableApiControl(true, vehicle_name_ptr_pair.first);
+            airsim_client_drones_->armDisarm(true, vehicle_name_ptr_pair.first);
 	    }
 	    else
 	    {
 	    	airsim_client_cars_->enableApiControl(true, vehicle_name_ptr_pair.first); // todo expose as rosservice?
-            	airsim_client_cars_->armDisarm(true, vehicle_name_ptr_pair.first); // todo exposes as rosservice?
+            airsim_client_cars_->armDisarm(true, vehicle_name_ptr_pair.first); // todo exposes as rosservice?
 	    }
         }
 
@@ -229,6 +229,8 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
                 boost::bind(&AirsimROSWrapper::takeoff_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
             drone->land_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Land::Request, airsim_ros_pkgs::Land::Response>(curr_vehicle_name + "/land",
                 boost::bind(&AirsimROSWrapper::land_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
+            drone->arm_disarm_srvr = nh_private_.advertiseService<std_srvs::SetBool::Request, std_srvs::SetBool::Response>(curr_vehicle_name + "/arm_disarm",
+                boost::bind(&AirsimROSWrapper::arm_disarm_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
             // vehicle_ros.reset_srvr = nh_private_.advertiseService(curr_vehicle_name + "/reset",&AirsimROSWrapper::reset_srv_cb, this);
         }
         else
@@ -556,6 +558,21 @@ bool AirsimROSWrapper::reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, ai
     {
     	airsim_client_drones_.reset();
     }
+    return true; //todo
+}
+
+bool AirsimROSWrapper::arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name) {
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+
+    if(request.data) {
+        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->enableApiControl(true, vehicle_name);
+        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->armDisarm(true, vehicle_name);
+    } else {
+        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->armDisarm(false, vehicle_name);
+        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->enableApiControl(false, vehicle_name);
+    }
+    response.success = true;
+
     return true; //todo
 }
 
