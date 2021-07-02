@@ -211,6 +211,11 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
 
         vehicle_ros->global_gps_pub = nh_private_.advertise<sensor_msgs::NavSatFix>(curr_vehicle_name + "/global_gps", 10);
 
+        vehicle_ros->attach_to_vehicle_srvr = nh_private_.advertiseService<airsim_ros_pkgs::AttachToVehicle::Request, airsim_ros_pkgs::AttachToVehicle::Response>(curr_vehicle_name + "/attach_to_vehicle",
+            boost::bind(&AirsimROSWrapper::attach_to_vehicle_srv_cb, this, _1, _2, vehicle_ros->vehicle_name));
+        vehicle_ros->detach_from_vehicle_srvr = nh_private_.advertiseService<std_srvs::Trigger::Request, std_srvs::Trigger::Response>(curr_vehicle_name + "/detach_from_vehicle",
+            boost::bind(&AirsimROSWrapper::detach_from_vehicle_srv_cb, this, _1, _2, vehicle_ros->vehicle_name));
+
         if (curr_vehicle_class == kVehicleClassDrone)
         {
             auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
@@ -231,6 +236,8 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
                 boost::bind(&AirsimROSWrapper::land_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
             drone->arm_disarm_srvr = nh_private_.advertiseService<std_srvs::SetBool::Request, std_srvs::SetBool::Response>(curr_vehicle_name + "/arm_disarm",
                 boost::bind(&AirsimROSWrapper::arm_disarm_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
+            drone->enable_disable_physics_srvr = nh_private_.advertiseService<std_srvs::SetBool::Request, std_srvs::SetBool::Response>(curr_vehicle_name + "/enable_disable_physics",
+                boost::bind(&AirsimROSWrapper::enable_disable_physics_srv_cb, this, _1, _2, vehicle_ros->vehicle_name));
             // vehicle_ros.reset_srvr = nh_private_.advertiseService(curr_vehicle_name + "/reset",&AirsimROSWrapper::reset_srv_cb, this);
         }
         else
@@ -425,17 +432,86 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
     initialize_airsim();
 }
 
+bool AirsimROSWrapper::attach_to_vehicle_srv_cb(airsim_ros_pkgs::AttachToVehicle::Request& request, airsim_ros_pkgs::AttachToVehicle::Response& response, const std::string& vehicle_name) {
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+
+    if(vehicle_name_ptr_map_.find(request.vehicle_name) != vehicle_name_ptr_map_.end()) {
+        vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle = request.vehicle_name;
+        vehicle_name_ptr_map_[vehicle_name]->transform_to_attachment_vehicle_set = false;
+        std::string vehicle_class = get_vehicle_class(*vehicle_name_ptr_map_[vehicle_name]);
+        response.success = true;
+        if(vehicle_class == kVehicleClassDrone) {
+            response.success = airsim_client_drones_->simDisablePhysicsVehicle(vehicle_name);
+        } else {
+            response.success = airsim_client_cars_->simEnablePhysicsVehicle(vehicle_name);
+        }
+        if(response.success) {
+            if(vehicle_class == kVehicleClassDrone) {
+                airsim_client_drones_->simDisableCollisionsOfVehicleWithVehicle(vehicle_name, request.vehicle_name);
+            } else {
+                airsim_client_cars_->simDisableCollisionsOfVehicleWithVehicle(vehicle_name, request.vehicle_name);
+            }
+            std::string attachment_vehicle_class = get_vehicle_class(*vehicle_name_ptr_map_[request.vehicle_name]);
+            if(attachment_vehicle_class == kVehicleClassDrone) {
+                airsim_client_drones_->simDisableCollisionsOfVehicleWithVehicle(request.vehicle_name, vehicle_name);
+            } else {
+                airsim_client_cars_->simDisableCollisionsOfVehicleWithVehicle(request.vehicle_name, vehicle_name);
+            }
+        } else {
+            ROS_ERROR("Unable to disable physics for vehicle %s", vehicle_name.c_str());
+        }
+    } else {
+        response.success = false;
+    }
+
+    return true;
+}
+
+bool AirsimROSWrapper::detach_from_vehicle_srv_cb(std_srvs::Trigger::Request& request, std_srvs::Trigger::Response& response, const std::string& vehicle_name) {
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+
+    response.success = true;
+    std::string vehicle_class = get_vehicle_class(*vehicle_name_ptr_map_[vehicle_name]);
+    if(vehicle_class == kVehicleClassDrone) {
+        response.success = airsim_client_drones_->simEnablePhysicsVehicle(vehicle_name);
+    } else {
+        response.success = airsim_client_cars_->simEnablePhysicsVehicle(vehicle_name);
+    }
+    if(response.success) {
+        if(vehicle_class == kVehicleClassDrone) {
+            airsim_client_drones_->simEnableCollisionsOfVehicleWithVehicle(vehicle_name, vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle);
+            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->resetPositionGoal(vehicle_name);
+        } else {
+            airsim_client_cars_->simEnableCollisionsOfVehicleWithVehicle(vehicle_name, vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle);
+        }
+        std::string attachment_vehicle_class = get_vehicle_class(*vehicle_name_ptr_map_[vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle]);
+        if(attachment_vehicle_class == kVehicleClassDrone) {
+            airsim_client_drones_->simEnableCollisionsOfVehicleWithVehicle(vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle, vehicle_name);
+        } else {
+            airsim_client_cars_->simEnableCollisionsOfVehicleWithVehicle(vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle, vehicle_name);
+        }
+    } else {
+        ROS_ERROR("Unable to enable physics for vehicle %s", vehicle_name.c_str());
+    }
+    vehicle_name_ptr_map_[vehicle_name]->attached_to_vehicle = "";
+
+    return true;
+}
+
 // todo: error check. if state is not landed, return error.
 bool AirsimROSWrapper::takeoff_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response, const std::string& vehicle_name)
 {
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
 
-    if (request.waitOnLastTask)
-        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name)->waitOnLastTask(); // todo value for timeout_sec?
-        // response.success =
-    else
-        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name);
-        // response.success =
+    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+    if(drone->attached_to_vehicle.empty()) {
+        if (request.waitOnLastTask)
+            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name)->waitOnLastTask(); // todo value for timeout_sec?
+            // response.success =
+        else
+            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name);
+            // response.success =
+    }
 
     return true;
 }
@@ -446,14 +522,24 @@ bool AirsimROSWrapper::takeoff_group_srv_cb(airsim_ros_pkgs::TakeoffGroup::Reque
 
     if (request.waitOnLastTask)
         for(const auto& vehicle_name : request.vehicle_names)
-            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name)->waitOnLastTask(); // todo value for timeout_sec?
+        {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name)->waitOnLastTask(); // todo value for timeout_sec?
+            }
+        }
         // response.success =
     else
         for(const auto& vehicle_name : request.vehicle_names)
-            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name);
+        {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name);
+            }
+        }
         // response.success =
 
-    return true;
+return true;
 }
 
 bool AirsimROSWrapper::takeoff_all_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response)
@@ -467,7 +553,10 @@ bool AirsimROSWrapper::takeoff_all_srv_cb(airsim_ros_pkgs::Takeoff::Request& req
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 	    if(curr_vehicle_class == kVehicleClassDrone)
 	    {
-		static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name_ptr_pair.first)->waitOnLastTask(); // todo value for timeout_sec?
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name_ptr_pair.first].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name_ptr_pair.first)->waitOnLastTask(); // todo value for timeout_sec?
+            }
         	// response.success =
 	    }
 	}
@@ -479,7 +568,10 @@ bool AirsimROSWrapper::takeoff_all_srv_cb(airsim_ros_pkgs::Takeoff::Request& req
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 	    if(curr_vehicle_class == kVehicleClassDrone)
 	    {
-		static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name_ptr_pair.first); // todo value for timeout_sec?
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name_ptr_pair.first].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->takeoffAsync(20, vehicle_name_ptr_pair.first); // todo value for timeout_sec?
+            }
         	// response.success =
 	    }
 	}
@@ -492,10 +584,13 @@ bool AirsimROSWrapper::land_srv_cb(airsim_ros_pkgs::Land::Request& request, airs
 {
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
 
-    if (request.waitOnLastTask)
-        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name)->waitOnLastTask();
-    else
-        static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name);
+    auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+    if(drone->attached_to_vehicle.empty()) {
+        if (request.waitOnLastTask)
+            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name)->waitOnLastTask();
+        else
+            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name);
+    }
 
     return true; //todo
 }
@@ -506,10 +601,20 @@ bool AirsimROSWrapper::land_group_srv_cb(airsim_ros_pkgs::LandGroup::Request& re
 
     if (request.waitOnLastTask)
         for(const auto& vehicle_name : request.vehicle_names)
-            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name)->waitOnLastTask();
+        {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name)->waitOnLastTask();
+            }
+        }
     else
         for(const auto& vehicle_name : request.vehicle_names)
-            static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name);
+        {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name);
+            }
+        }
 
     return true; //todo
 }
@@ -525,7 +630,10 @@ bool AirsimROSWrapper::land_all_srv_cb(airsim_ros_pkgs::Land::Request& request, 
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 	    if(curr_vehicle_class == kVehicleClassDrone)
 	    {
-		static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name_ptr_pair.first)->waitOnLastTask();
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name_ptr_pair.first].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name_ptr_pair.first)->waitOnLastTask();
+            }
 	    }
 	}
     }
@@ -536,7 +644,10 @@ bool AirsimROSWrapper::land_all_srv_cb(airsim_ros_pkgs::Land::Request& request, 
 	    std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 	    if(curr_vehicle_class == kVehicleClassDrone)
 	    {
-		static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name_ptr_pair.first);
+            auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name_ptr_pair.first].get());
+            if(drone->attached_to_vehicle.empty()) {
+                static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->landAsync(60, vehicle_name_ptr_pair.first);
+            }
 	    }
 	}
     }
@@ -552,7 +663,7 @@ bool AirsimROSWrapper::reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, ai
 
     if(airsim_mode_ == AIRSIM_MODE::CAR || airsim_mode_ == AIRSIM_MODE::BOTH)
     {
-	airsim_client_cars_.reset();
+        airsim_client_cars_.reset();
     }
     else
     {
@@ -576,6 +687,18 @@ bool AirsimROSWrapper::arm_disarm_srv_cb(std_srvs::SetBool::Request& request, st
     return true; //todo
 }
 
+bool AirsimROSWrapper::enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name) {
+    std::lock_guard<std::mutex> guard(drone_control_mutex_);
+
+    if(request.data) {
+        response.success = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->simEnablePhysicsVehicle(vehicle_name);
+    } else {
+        response.success = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get())->simDisablePhysicsVehicle(vehicle_name);
+    }
+
+    return response.success;
+}
+
 tf2::Quaternion AirsimROSWrapper::get_tf2_quat(const msr::airlib::Quaternionr& airlib_quat) const
 {
     return tf2::Quaternion(airlib_quat.x(), airlib_quat.y(), airlib_quat.z(), airlib_quat.w());
@@ -596,15 +719,19 @@ void AirsimROSWrapper::car_cmd_cb(const airsim_ros_pkgs::CarControls::ConstPtr& 
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
 
     auto car = static_cast<CarROS*>(vehicle_name_ptr_map_[vehicle_name].get());
-    car->car_cmd.throttle = msg->throttle;
-    car->car_cmd.steering = msg->steering;
-    car->car_cmd.brake = msg->brake;
-    car->car_cmd.handbrake = msg->handbrake;
-    car->car_cmd.is_manual_gear = msg->manual;
-    car->car_cmd.manual_gear = msg->manual_gear;
-    car->car_cmd.gear_immediate = msg->gear_immediate;
+    if(car->attached_to_vehicle.empty()) {
+        car->car_cmd.throttle = msg->throttle;
+        car->car_cmd.steering = msg->steering;
+        car->car_cmd.brake = msg->brake;
+        car->car_cmd.handbrake = msg->handbrake;
+        car->car_cmd.is_manual_gear = msg->manual;
+        car->car_cmd.manual_gear = msg->manual_gear;
+        car->car_cmd.gear_immediate = msg->gear_immediate;
 
-    car->has_car_cmd = true;
+        car->has_car_cmd = true;
+    } else {
+        ROS_WARN("Attempting to send car command to vehicle currently attached to another one.");
+    }
 }
 
 msr::airlib::Pose AirsimROSWrapper::get_airlib_pose(const float& x, const float& y, const float& z, const msr::airlib::Quaternionr& airlib_quat) const
@@ -619,18 +746,22 @@ void AirsimROSWrapper::vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd::Cons
 
     auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-    double roll, pitch, yaw;
-    tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
+    if(drone->attached_to_vehicle.empty()) {
+        double roll, pitch, yaw;
+        tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
 
-    // todo do actual body frame?
-    drone->vel_cmd.x = (msg->twist.linear.x * cos(yaw)) - (msg->twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
-    drone->vel_cmd.y = (msg->twist.linear.x * sin(yaw)) + (msg->twist.linear.y * cos(yaw)); //body frame
-    drone->vel_cmd.z = msg->twist.linear.z;
-    drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-    drone->vel_cmd.yaw_mode.is_rate = true;
-    // airsim uses degrees
-    drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg->twist.angular.z);
-    drone->has_vel_cmd = true;
+        // todo do actual body frame?
+        drone->vel_cmd.x = (msg->twist.linear.x * cos(yaw)) - (msg->twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
+        drone->vel_cmd.y = (msg->twist.linear.x * sin(yaw)) + (msg->twist.linear.y * cos(yaw)); //body frame
+        drone->vel_cmd.z = msg->twist.linear.z;
+        drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+        drone->vel_cmd.yaw_mode.is_rate = true;
+        // airsim uses degrees
+        drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg->twist.angular.z);
+        drone->has_vel_cmd = true;
+    } else {
+        ROS_WARN("Attempting to send velocity command to vehicle currently attached to another one.");
+    }
 }
 
 void AirsimROSWrapper::vel_cmd_group_body_frame_cb(const airsim_ros_pkgs::VelCmdGroup& msg)
@@ -641,18 +772,22 @@ void AirsimROSWrapper::vel_cmd_group_body_frame_cb(const airsim_ros_pkgs::VelCmd
     {
         auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-        double roll, pitch, yaw;
-        tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
+        if(drone->attached_to_vehicle.empty()) {
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
 
-        // todo do actual body frame?
-        drone->vel_cmd.x = (msg.twist.linear.x * cos(yaw)) - (msg.twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
-        drone->vel_cmd.y = (msg.twist.linear.x * sin(yaw)) + (msg.twist.linear.y * cos(yaw)); //body frame
-        drone->vel_cmd.z = msg.twist.linear.z;
-        drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-        drone->vel_cmd.yaw_mode.is_rate = true;
-        // airsim uses degrees
-        drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
-        drone->has_vel_cmd = true;
+            // todo do actual body frame?
+            drone->vel_cmd.x = (msg.twist.linear.x * cos(yaw)) - (msg.twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
+            drone->vel_cmd.y = (msg.twist.linear.x * sin(yaw)) + (msg.twist.linear.y * cos(yaw)); //body frame
+            drone->vel_cmd.z = msg.twist.linear.z;
+            drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+            drone->vel_cmd.yaw_mode.is_rate = true;
+            // airsim uses degrees
+            drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
+            drone->has_vel_cmd = true;
+        } else {
+            ROS_WARN("Attempting to send velocity command to vehicle currently attached to another one.");
+        }
     }
 }
 
@@ -669,18 +804,20 @@ void AirsimROSWrapper::vel_cmd_all_body_frame_cb(const airsim_ros_pkgs::VelCmd& 
     	{
             auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_pair.second.get());
 
-            double roll, pitch, yaw;
-            tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
+            if(drone->attached_to_vehicle.empty()) {
+                double roll, pitch, yaw;
+                tf2::Matrix3x3(get_tf2_quat(drone->curr_drone_state.kinematics_estimated.pose.orientation)).getRPY(roll, pitch, yaw); // ros uses xyzw
 
-            // todo do actual body frame?
-            drone->vel_cmd.x = (msg.twist.linear.x * cos(yaw)) - (msg.twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
-            drone->vel_cmd.y = (msg.twist.linear.x * sin(yaw)) + (msg.twist.linear.y * cos(yaw)); //body frame
-            drone->vel_cmd.z = msg.twist.linear.z;
-            drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-            drone->vel_cmd.yaw_mode.is_rate = true;
-            // airsim uses degrees
-            drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
-            drone->has_vel_cmd = true;
+                // todo do actual body frame?
+                drone->vel_cmd.x = (msg.twist.linear.x * cos(yaw)) - (msg.twist.linear.y * sin(yaw)); //body frame assuming zero pitch roll
+                drone->vel_cmd.y = (msg.twist.linear.x * sin(yaw)) + (msg.twist.linear.y * cos(yaw)); //body frame
+                drone->vel_cmd.z = msg.twist.linear.z;
+                drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+                drone->vel_cmd.yaw_mode.is_rate = true;
+                // airsim uses degrees
+                drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
+                drone->has_vel_cmd = true;
+            }
 	}
     }
 }
@@ -691,13 +828,17 @@ void AirsimROSWrapper::vel_cmd_world_frame_cb(const airsim_ros_pkgs::VelCmd::Con
 
     auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-    drone->vel_cmd.x = msg->twist.linear.x;
-    drone->vel_cmd.y = msg->twist.linear.y;
-    drone->vel_cmd.z = msg->twist.linear.z;
-    drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-    drone->vel_cmd.yaw_mode.is_rate = true;
-    drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg->twist.angular.z);
-    drone->has_vel_cmd = true;
+    if(drone->attached_to_vehicle.empty()) {
+        drone->vel_cmd.x = msg->twist.linear.x;
+        drone->vel_cmd.y = msg->twist.linear.y;
+        drone->vel_cmd.z = msg->twist.linear.z;
+        drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+        drone->vel_cmd.yaw_mode.is_rate = true;
+        drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg->twist.angular.z);
+        drone->has_vel_cmd = true;
+    } else {
+        ROS_WARN("Attempting to send velocity command to vehicle currently attached to another one.");
+    }
 }
 
 // this is kinda unnecessary but maybe it makes life easier for the end user.
@@ -709,13 +850,17 @@ void AirsimROSWrapper::vel_cmd_group_world_frame_cb(const airsim_ros_pkgs::VelCm
     {
         auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-        drone->vel_cmd.x = msg.twist.linear.x;
-        drone->vel_cmd.y = msg.twist.linear.y;
-        drone->vel_cmd.z = msg.twist.linear.z;
-        drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-        drone->vel_cmd.yaw_mode.is_rate = true;
-        drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
-        drone->has_vel_cmd = true;
+        if(drone->attached_to_vehicle.empty()) {
+            drone->vel_cmd.x = msg.twist.linear.x;
+            drone->vel_cmd.y = msg.twist.linear.y;
+            drone->vel_cmd.z = msg.twist.linear.z;
+            drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+            drone->vel_cmd.yaw_mode.is_rate = true;
+            drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
+            drone->has_vel_cmd = true;
+        } else {
+            ROS_WARN("Attempting to send velocity command to vehicle currently attached to another one.");
+        }
     }
 }
 
@@ -731,13 +876,15 @@ void AirsimROSWrapper::vel_cmd_all_world_frame_cb(const airsim_ros_pkgs::VelCmd&
 	{
             auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_pair.second.get());
 
-            drone->vel_cmd.x = msg.twist.linear.x;
-            drone->vel_cmd.y = msg.twist.linear.y;
-            drone->vel_cmd.z = msg.twist.linear.z;
-            drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
-            drone->vel_cmd.yaw_mode.is_rate = true;
-            drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
-            drone->has_vel_cmd = true;
+            if(drone->attached_to_vehicle.empty()) {
+                drone->vel_cmd.x = msg.twist.linear.x;
+                drone->vel_cmd.y = msg.twist.linear.y;
+                drone->vel_cmd.z = msg.twist.linear.z;
+                drone->vel_cmd.drivetrain = msr::airlib::DrivetrainType::MaxDegreeOfFreedom;
+                drone->vel_cmd.yaw_mode.is_rate = true;
+                drone->vel_cmd.yaw_mode.yaw_or_rate = math_common::rad2deg(msg.twist.angular.z);
+                drone->has_vel_cmd = true;
+            }
 	}
     }
 }
@@ -749,21 +896,25 @@ void AirsimROSWrapper::rpy_throttle_cmd_cb(const airsim_ros_pkgs::RPYThrottleCmd
 
     auto drone = static_cast<MultiRotorROS*>(vehicle_name_ptr_map_[vehicle_name].get());
 
-    if(odom_frame_id_ == ENU_ODOM_FRAME_ID)
-    {
-        drone->rpy_throttle_cmd.roll = msg->pitch;
-        drone->rpy_throttle_cmd.pitch = msg->roll;
-        drone->rpy_throttle_cmd.yaw = -msg->yaw;
-    }
-    else
-    {
-        drone->rpy_throttle_cmd.roll = msg->roll;
-        drone->rpy_throttle_cmd.pitch = msg->pitch;
-        drone->rpy_throttle_cmd.yaw = msg->yaw;
-    }
-    drone->rpy_throttle_cmd.throttle = msg->throttle;
+    if(drone->attached_to_vehicle.empty()) {
+        if(odom_frame_id_ == ENU_ODOM_FRAME_ID)
+        {
+            drone->rpy_throttle_cmd.roll = msg->pitch;
+            drone->rpy_throttle_cmd.pitch = msg->roll;
+            drone->rpy_throttle_cmd.yaw = -msg->yaw;
+        }
+        else
+        {
+            drone->rpy_throttle_cmd.roll = msg->roll;
+            drone->rpy_throttle_cmd.pitch = msg->pitch;
+            drone->rpy_throttle_cmd.yaw = msg->yaw;
+        }
+        drone->rpy_throttle_cmd.throttle = msg->throttle;
 
-    drone->has_rpy_throttle_cmd = true;
+        drone->has_rpy_throttle_cmd = true;
+    } else {
+        ROS_WARN("Attempting to send RPY throttle command to vehicle currently attached to another one.");
+    }
 }
 
 // todo support multiple gimbal commands
@@ -1203,12 +1354,14 @@ ros::Time AirsimROSWrapper::update_state()
         // get drone state from airsim
         auto& vehicle_ros = vehicle_name_ptr_pair.second;
 
+        msr::airlib::Pose attachment_vehicle_pose, attached_vehicle_pose;
+
         // vehicle environment, we can get ambient temperature here and other truths
         msr::airlib::Environment::State env_data;
-	std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
-	if(curr_vehicle_class == kVehicleClassDrone)
+        std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
+        if(curr_vehicle_class == kVehicleClassDrone)
         {
-	    env_data = airsim_client_drones_->simGetGroundTruthEnvironment(vehicle_ros->vehicle_name);
+            env_data = airsim_client_drones_->simGetGroundTruthEnvironment(vehicle_ros->vehicle_name);
             auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
             auto rpc = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get());
             drone->curr_drone_state = rpc->getMultirotorState(vehicle_ros->vehicle_name);
@@ -1224,13 +1377,18 @@ ros::Time AirsimROSWrapper::update_state()
             vehicle_ros->gps_sensor_msg.header.stamp = vehicle_time;
 
             vehicle_ros->curr_odom = get_odom_msg_from_multirotor_state(drone->curr_drone_state);
+
+            if(!vehicle_ros->attached_to_vehicle.empty() && !vehicle_ros->transform_to_attachment_vehicle_set) {
+                attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
+                attached_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->vehicle_name);
+            }
         }
         else
         {
-	    env_data = airsim_client_cars_->simGetGroundTruthEnvironment(vehicle_ros->vehicle_name);
+            env_data = airsim_client_cars_->simGetGroundTruthEnvironment(vehicle_ros->vehicle_name);
             auto car = static_cast<CarROS*>(vehicle_ros.get());
             msr::airlib::CarRpcLibClient* rpc;
-	    rpc = static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get());
+            rpc = static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get());
             car->curr_car_state = rpc->getCarState(vehicle_ros->vehicle_name);
 
             vehicle_time = airsim_timestamp_to_ros(car->curr_car_state.timestamp);
@@ -1248,6 +1406,38 @@ ros::Time AirsimROSWrapper::update_state()
             airsim_ros_pkgs::CarState state_msg = get_roscarstate_msg_from_car_state(car->curr_car_state);
             state_msg.header.frame_id = vehicle_ros->vehicle_name;
             car->car_state_msg = state_msg;
+
+            if(!vehicle_ros->attached_to_vehicle.empty() && !vehicle_ros->transform_to_attachment_vehicle_set) {
+                attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
+                attached_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->vehicle_name);
+            }
+        }
+
+        // Get relative transform to attachment vehicle if not set yet
+        if(!vehicle_ros->attached_to_vehicle.empty() && !vehicle_ros->transform_to_attachment_vehicle_set) {
+            // Retrieve rotation matrices and translation vectors
+            tf2::Matrix3x3 e_R_atm(get_tf2_quat(attachment_vehicle_pose.orientation));
+            tf2::Vector3 e_t_atm(attachment_vehicle_pose.position(0), attachment_vehicle_pose.position(1), attachment_vehicle_pose.position(2));
+            tf2::Matrix3x3 e_R_atc(get_tf2_quat(attached_vehicle_pose.orientation));
+            tf2::Vector3 e_t_atc(attached_vehicle_pose.position(0), attached_vehicle_pose.position(1), attached_vehicle_pose.position(2));
+
+            // Find transform from attached to attachment frame
+            tf2::Matrix3x3 atm_R_atc = e_R_atm.transpose()*e_R_atc;
+            tf2::Vector3 atm_t_atc = e_R_atm.transpose()*e_t_atc - e_R_atm.transpose()*e_t_atm;
+            tf2::Quaternion atm_q_atc;
+            atm_R_atc.getRotation(atm_q_atc);
+
+            // Set transform
+            vehicle_ros->transform_to_attachment_vehicle.position.x = atm_t_atc.x();
+            vehicle_ros->transform_to_attachment_vehicle.position.y = atm_t_atc.y();
+            vehicle_ros->transform_to_attachment_vehicle.position.z = atm_t_atc.z();
+            vehicle_ros->transform_to_attachment_vehicle.orientation.x = atm_q_atc.x();
+            vehicle_ros->transform_to_attachment_vehicle.orientation.y = atm_q_atc.y();
+            vehicle_ros->transform_to_attachment_vehicle.orientation.z = atm_q_atc.z();
+            vehicle_ros->transform_to_attachment_vehicle.orientation.w = atm_q_atc.w();
+
+            // Set flag to true
+            vehicle_ros->transform_to_attachment_vehicle_set = true;
         }
 
         vehicle_ros->stamp = vehicle_time;
@@ -1431,9 +1621,55 @@ void AirsimROSWrapper::update_commands()
             if (car->has_car_cmd)
             {
                 std::lock_guard<std::mutex> guard(drone_control_mutex_);
-		static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get())->setCarControls(car->car_cmd, vehicle_ros->vehicle_name);
+                static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get())->setCarControls(car->car_cmd, vehicle_ros->vehicle_name);
             }
             car->has_car_cmd = false;
+        }
+
+        // If attached to another vehicle
+        if(!vehicle_ros->attached_to_vehicle.empty()) {
+            // Get attachment vehicle's pose
+            double roll_tmp, pitch_tmp, yaw_tmp;
+            msr::airlib::Pose attachment_vehicle_pose;
+            if(curr_vehicle_class == kVehicleClassDrone) {
+                auto rpc = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get());
+                attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
+            } else {
+                auto rpc = static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get());
+                attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
+            }
+            tf2::Quaternion e_q_atm = get_tf2_quat(attachment_vehicle_pose.orientation);
+            tf2::Matrix3x3 e_R_atm(e_q_atm);
+            tf2::Vector3 e_t_atm(attachment_vehicle_pose.position(0), attachment_vehicle_pose.position(1), attachment_vehicle_pose.position(2));
+
+            // Get relative pose
+            double x_tmp = vehicle_ros->transform_to_attachment_vehicle.position.x;
+            double y_tmp = vehicle_ros->transform_to_attachment_vehicle.position.y;
+            double z_tmp = vehicle_ros->transform_to_attachment_vehicle.position.z;
+            tf2::Vector3 atm_t_atc = tf2::Vector3(x_tmp, y_tmp, z_tmp);
+            x_tmp = vehicle_ros->transform_to_attachment_vehicle.orientation.x;
+            y_tmp = vehicle_ros->transform_to_attachment_vehicle.orientation.y;
+            z_tmp = vehicle_ros->transform_to_attachment_vehicle.orientation.z;
+            double w_tmp = vehicle_ros->transform_to_attachment_vehicle.orientation.w;
+            tf2::Quaternion atm_q_atc(x_tmp, y_tmp, z_tmp, w_tmp);
+
+            // Get absolute pose of attached vehicle
+            tf2::Quaternion e_q_atc = e_q_atm*atm_q_atc;
+            e_q_atc.normalize();
+            tf2::Vector3 e_t_atc = e_R_atm*atm_t_atc + e_t_atm;
+
+            // Get AirLib pose
+            msr::airlib::Quaternionr quat = get_airlib_quat(e_q_atc);
+            msr::airlib::Pose pose = get_airlib_pose(e_t_atc.x(), e_t_atc.y(), e_t_atc.z(),quat);
+
+            // Set absolute pose of attached vehicle
+            if(curr_vehicle_class == kVehicleClassDrone) {
+                auto rpc = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get());
+                rpc->simSetVehiclePose(pose, true, vehicle_ros->vehicle_name);
+            } else {
+                auto rpc = static_cast<msr::airlib::CarRpcLibClient*>(airsim_client_cars_.get());
+                rpc->simSetVehiclePose(pose, true, vehicle_ros->vehicle_name);
+            }
         }
     }
 

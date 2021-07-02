@@ -15,6 +15,7 @@ STRICT_MODE_ON
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
 #include "vehicles/car/api/CarRpcLibClient.hpp"
 #include "yaml-cpp/yaml.h"
+#include <airsim_ros_pkgs/AttachToVehicle.h>
 #include <airsim_ros_pkgs/GimbalAngleEulerCmd.h>
 #include <airsim_ros_pkgs/GimbalAngleQuatCmd.h>
 #include <airsim_ros_pkgs/GPSYaw.h>
@@ -56,6 +57,7 @@ STRICT_MODE_ON
 #include <rosgraph_msgs/Clock.h>
 #include <std_srvs/Empty.h>
 #include <std_srvs/SetBool.h>
+#include <std_srvs/Trigger.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -175,6 +177,8 @@ private:
         std::vector<SensorPublisher> sensor_pubs;
         // handle lidar seperately for max performance as data is collected on its own thread/callback
         std::vector<SensorPublisher> lidar_pubs;
+        ros::ServiceServer attach_to_vehicle_srvr;
+        ros::ServiceServer detach_from_vehicle_srvr;
 
         nav_msgs::Odometry curr_odom;
         sensor_msgs::NavSatFix gps_sensor_msg;
@@ -185,6 +189,11 @@ private:
 
 
         std::string odom_frame_id;
+
+        std::string attached_to_vehicle = "";
+        geometry_msgs::Pose transform_to_attachment_vehicle;
+        bool transform_to_attachment_vehicle_set = false;
+
         /// Status
         // bool is_armed_;
         // std::string mode_;
@@ -218,6 +227,7 @@ private:
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
         ros::ServiceServer arm_disarm_srvr;
+        ros::ServiceServer enable_disable_physics_srvr;
 
         bool has_vel_cmd;
         VelCmd vel_cmd;
@@ -260,6 +270,8 @@ private:
     void publish_vehicle_state();
 
     /// ROS service callbacks
+    bool attach_to_vehicle_srv_cb(airsim_ros_pkgs::AttachToVehicle::Request& request, airsim_ros_pkgs::AttachToVehicle::Response& response, const std::string& vehicle_name);
+    bool detach_from_vehicle_srv_cb(std_srvs::Trigger::Request& request, std_srvs::Trigger::Response& response, const std::string& vehicle_name);
     bool takeoff_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response, const std::string& vehicle_name);
     bool takeoff_group_srv_cb(airsim_ros_pkgs::TakeoffGroup::Request& request, airsim_ros_pkgs::TakeoffGroup::Response& response);
     bool takeoff_all_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response);
@@ -268,6 +280,7 @@ private:
     bool land_all_srv_cb(airsim_ros_pkgs::Land::Request& request, airsim_ros_pkgs::Land::Response& response);
     bool reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, airsim_ros_pkgs::Reset::Response& response);
     bool arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
+    bool enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
 
     /// ROS tf broadcasters
     void publish_camera_tf(const ImageResponse& img_response, const ros::Time& ros_time, const std::string& frame_id, const std::string& child_frame_id);

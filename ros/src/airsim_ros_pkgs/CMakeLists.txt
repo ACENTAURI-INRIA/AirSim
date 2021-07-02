@@ -59,6 +59,7 @@ add_message_files(
 
 add_service_files(
   FILES
+  AttachToVehicle.srv
   SetGPSPosition.srv
   Takeoff.srv
   TakeoffGroup.srv
