@@ -83,6 +83,10 @@ public: //VehicleApiBase implementation
     {
         return AirSimSimpleFlightCommon::toGeoPoint(firmware_->offboardApi().getHomeGeoPoint());
     }
+    virtual void resetPositionGoal() override
+    {
+        firmware_->offboardApi().resetGoalAndMode();
+    }
     virtual void getStatusMessages(std::vector<std::string>& messages) override
     {
         comm_link_->getStatusMessages(messages);

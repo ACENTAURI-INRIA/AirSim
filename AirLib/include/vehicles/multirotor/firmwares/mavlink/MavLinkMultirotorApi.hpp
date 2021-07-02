@@ -592,6 +592,11 @@ namespace airlib
                 return GeoPoint(Utils::nan<double>(), Utils::nan<double>(), Utils::nan<float>());
         }
 
+        virtual void resetPositionGoal() override
+        {
+            addStatusMessage("resetPositionGoal is not defined for MavLink API");
+        }
+
         virtual GeoPoint getGpsLocation() const override
         {
             updateState();

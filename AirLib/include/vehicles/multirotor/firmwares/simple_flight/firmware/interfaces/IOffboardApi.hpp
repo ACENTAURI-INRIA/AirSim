@@ -13,6 +13,7 @@ public:
     virtual bool requestApiControl(std::string& message) = 0;
     virtual void releaseApiControl() = 0;
     virtual bool setGoalAndMode(const Axis4r* goal, const GoalMode* goal_mode, std::string& message) = 0;
+    virtual void resetGoalAndMode() = 0;
 
     virtual bool arm(std::string& message) = 0;
     virtual bool disarm(std::string& message) = 0;

@@ -89,6 +89,10 @@ public:
         Utils::log("Not Implemented: getHomeGeoPoint", Utils::kLogLevelInfo);
         return GeoPoint(Utils::nan<double>(), Utils::nan<double>(), Utils::nan<float>());
     }
+    virtual void resetPositionGoal() override
+    {
+        Utils::log("Not Implemented: resetPositionGoal", Utils::kLogLevelInfo);
+    }
     virtual void getStatusMessages(std::vector<std::string>& messages) override
     {
         unused(messages);
@@ -356,7 +360,7 @@ private:
 
                 << "\"velocity\": {"
                 << std::setprecision(12)
-                << "\"world_linear_velocity\": [" 
+                << "\"world_linear_velocity\": ["
                 << gps_output.gnss.velocity[0] << ","
                 << gps_output.gnss.velocity[1] << ","
                 << gps_output.gnss.velocity[2] << "]"
