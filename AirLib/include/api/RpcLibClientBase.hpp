@@ -126,6 +126,11 @@ public:
 
     std::string getSettingsString() const;
 
+    bool simEnablePhysicsVehicle(const std::string& vehicle_name);
+    bool simDisablePhysicsVehicle(const std::string& vehicle_name);
+    void simEnableCollisionsOfVehicleWithVehicle(const std::string& vehicle_name, const std::string& colliding_vehicle_name);
+    void simDisableCollisionsOfVehicleWithVehicle(const std::string& vehicle_name, const std::string& colliding_vehicle_name);
+
 protected:
     void* getClient();
     const void* getClient() const;

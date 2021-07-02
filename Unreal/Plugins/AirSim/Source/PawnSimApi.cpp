@@ -65,7 +65,7 @@ void PawnSimApi::setStartPosition(const FVector& position, const FRotator& rotat
 
     //compute our home point
     Vector3r nedWrtOrigin = ned_transform_.toGlobalNed(initial_state_.start_location);
-    home_geo_point_ = msr::airlib::EarthUtils::nedToGeodetic(nedWrtOrigin, 
+    home_geo_point_ = msr::airlib::EarthUtils::nedToGeodetic(nedWrtOrigin,
         AirSimSettings::singleton().origin_geopoint);
 }
 
@@ -143,31 +143,35 @@ void PawnSimApi::createCamerasFromSettings()
     }
 }
 
-void PawnSimApi::onCollision(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp, 
+void PawnSimApi::onCollision(class UPrimitiveComponent* MyComp, class AActor* Other, class UPrimitiveComponent* OtherComp,
     bool bSelfMoved, FVector HitLocation, FVector HitNormal, FVector NormalImpulse, const FHitResult& Hit)
 {
     // Deflect along the surface when we collide.
     //FRotator CurrentRotation = GetActorRotation(RootComponent);
     //SetActorRotation(FQuat::Slerp(CurrentRotation.Quaternion(), HitNormal.ToOrientationQuat(), 0.025f));
 
-    UPrimitiveComponent* comp = Cast<class UPrimitiveComponent>(Other ? (Other->GetRootComponent() ? Other->GetRootComponent() : nullptr) : nullptr);
+    std::string object_name = std::string(Other ? TCHAR_TO_UTF8(*(Other->GetName())) : "(null)");
 
-    state_.collision_info.has_collided = true;
-    state_.collision_info.normal = Vector3r(Hit.ImpactNormal.X, Hit.ImpactNormal.Y, - Hit.ImpactNormal.Z);
-    state_.collision_info.impact_point = ned_transform_.toLocalNed(Hit.ImpactPoint);
-    state_.collision_info.position = ned_transform_.toLocalNed(getUUPosition());
-    state_.collision_info.penetration_depth = ned_transform_.toNed(Hit.PenetrationDepth);
-    state_.collision_info.time_stamp = msr::airlib::ClockFactory::get()->nowNanos();
-    state_.collision_info.object_name = std::string(Other ? TCHAR_TO_UTF8(*(Other->GetName())) : "(null)");
-    state_.collision_info.object_id = comp ? comp->CustomDepthStencilValue : -1;
+    if(disabledCollisions_.find(object_name) == disabledCollisions_.end()) {
+        UPrimitiveComponent* comp = Cast<class UPrimitiveComponent>(Other ? (Other->GetRootComponent() ? Other->GetRootComponent() : nullptr) : nullptr);
 
-    ++state_.collision_info.collision_count;
+        state_.collision_info.has_collided = true;
+        state_.collision_info.normal = Vector3r(Hit.ImpactNormal.X, Hit.ImpactNormal.Y, - Hit.ImpactNormal.Z);
+        state_.collision_info.impact_point = ned_transform_.toLocalNed(Hit.ImpactPoint);
+        state_.collision_info.position = ned_transform_.toLocalNed(getUUPosition());
+        state_.collision_info.penetration_depth = ned_transform_.toNed(Hit.PenetrationDepth);
+        state_.collision_info.time_stamp = msr::airlib::ClockFactory::get()->nowNanos();
+        state_.collision_info.object_name = object_name;
+        state_.collision_info.object_id = comp ? comp->CustomDepthStencilValue : -1;
+
+        ++state_.collision_info.collision_count;
 
 
-    UAirBlueprintLib::LogMessageString("Collision", Utils::stringf("#%d with %s - ObjID %d", 
-        state_.collision_info.collision_count, 
-        state_.collision_info.object_name.c_str(), state_.collision_info.object_id),
-        LogDebugLevel::Informational);
+        UAirBlueprintLib::LogMessageString("Collision", Utils::stringf("#%d with %s - ObjID %d",
+            state_.collision_info.collision_count,
+            state_.collision_info.object_name.c_str(), state_.collision_info.object_id),
+            LogDebugLevel::Informational);
+    }
 }
 
 void PawnSimApi::possess()
@@ -239,7 +243,7 @@ msr::airlib::RCData PawnSimApi::getRCData() const
         rc_data_.switches = joystick_state_.buttons;
         rc_data_.vendor_id = joystick_state_.pid_vid.substr(0, joystick_state_.pid_vid.find('&'));
 
-        
+
         //switch index 0 to 7 for FrSky Taranis RC is:
         //front-upper-left, front-upper-right, top-right-left, top-right-left, top-left-right, top-right-right, top-left-left, top-right-left
 
@@ -257,7 +261,7 @@ msr::airlib::RCData PawnSimApi::getRCData() const
 void PawnSimApi::displayCollisionEffect(FVector hit_location, const FHitResult& hit)
 {
     if (params_.collision_display_template != nullptr && Utils::isDefinitelyLessThan(hit.ImpactNormal.Z, 0.0f)) {
-        UParticleSystemComponent* particles = UGameplayStatics::SpawnEmitterAtLocation(params_.pawn->GetWorld(), 
+        UParticleSystemComponent* particles = UGameplayStatics::SpawnEmitterAtLocation(params_.pawn->GetWorld(),
             params_.collision_display_template, FTransform(hit_location), true);
         particles->SetWorldScale3D(FVector(0.1f, 0.1f, 0.1f));
     }
@@ -318,6 +322,24 @@ void PawnSimApi::reportState(msr::airlib::StateReporter& reporter)
     reporter.writeValue("unreal pos", Vector3r(unrealPosition.X, unrealPosition.Y, unrealPosition.Z));
 }
 
+// Must be derived to work
+bool PawnSimApi::enablePhysics()
+{
+    return false;
+}
+bool PawnSimApi::disablePhysics()
+{
+    return false;
+}
+
+void PawnSimApi::disableCollisionsWithVehicle(const std::string& vehicle_name) {
+    disabledCollisions_.insert(vehicle_name);
+}
+
+void PawnSimApi::enableCollisionsWithVehicle(const std::string& vehicle_name) {
+    disabledCollisions_.erase(vehicle_name);
+}
+
 //void playBack()
 //{
     //if (params_.pawn->GetRootPrimitiveComponent()->IsAnySimulatingPhysics()) {
@@ -358,7 +380,7 @@ void PawnSimApi::toggleTrace()
 
     if (!state_.tracing_enabled)
         UKismetSystemLibrary::FlushPersistentDebugLines(params_.pawn->GetWorld());
-    else {     
+    else {
         state_.debug_position_offset = state_.current_debug_position - state_.current_position;
         state_.last_debug_position = state_.last_position;
     }

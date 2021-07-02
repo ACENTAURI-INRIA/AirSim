@@ -8,7 +8,7 @@
 #include "physics//Kinematics.hpp"
 #include "common/Common.hpp"
 #include "common/CommonStructs.hpp"
-#include "common/common_utils/UniqueValueMap.hpp" 
+#include "common/common_utils/UniqueValueMap.hpp"
 #include "MultirotorPawnEvents.h"
 #include <future>
 
@@ -35,6 +35,9 @@ public:
     MultirotorPawnSimApi(const Params& params);
     virtual void updateRenderedState(float dt) override;
     virtual void updateRendering(float dt) override;
+
+    virtual bool enablePhysics() override;
+    virtual bool disablePhysics() override;
 
     //PhysicsBody interface
     //this just wrapped around MultiRotor physics body

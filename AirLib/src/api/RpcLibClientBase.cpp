@@ -278,7 +278,7 @@ vector<ImageCaptureBase::ImageResponse> RpcLibClientBase::simGetImages(vector<Im
                         resp.image_data_uint8.clear();
                         std::vector<unsigned char> vec;
 
-                        cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
+                        //cv::cvtColor(mat, mat, cv::COLOR_BGR2RGB);
                         lodepng::encode(vec, mat.data, mat.cols, mat.rows, LodePNGColorType::LCT_RGB);
 
                         // Replace above block with imencode if linking issues are sorted out
@@ -594,6 +594,26 @@ void RpcLibClientBase::simSetWind(const Vector3r& wind) const
 std::string RpcLibClientBase::getSettingsString() const
 {
     return pimpl_->client.call("getSettingsString").as<std::string>();
+}
+
+bool RpcLibClientBase::simEnablePhysicsVehicle(const std::string& vehicle_name)
+{
+    return pimpl_->client.call("simEnablePhysicsVehicle", vehicle_name).as<bool>();
+}
+
+bool RpcLibClientBase::simDisablePhysicsVehicle(const std::string& vehicle_name)
+{
+    return pimpl_->client.call("simDisablePhysicsVehicle", vehicle_name).as<bool>();
+}
+
+void RpcLibClientBase::simEnableCollisionsOfVehicleWithVehicle(const std::string& vehicle_name, const std::string& colliding_vehicle_name)
+{
+    pimpl_->client.call("simEnableCollisionsOfVehicleWithVehicle", vehicle_name, colliding_vehicle_name);
+}
+
+void RpcLibClientBase::simDisableCollisionsOfVehicleWithVehicle(const std::string& vehicle_name, const std::string& colliding_vehicle_name)
+{
+    pimpl_->client.call("simDisableCollisionsOfVehicleWithVehicle", vehicle_name, colliding_vehicle_name);
 }
 
 void* RpcLibClientBase::getClient()

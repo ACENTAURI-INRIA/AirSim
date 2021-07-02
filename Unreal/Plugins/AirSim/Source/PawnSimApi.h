@@ -6,6 +6,7 @@
 #include "UnrealImageCapture.h"
 
 #include <vector>
+#include <set>
 #include <memory>
 #include "common/Common.hpp"
 #include "common/common_utils/Signal.hpp"
@@ -36,7 +37,7 @@ public: //types
     typedef msr::airlib::ImageCaptureBase ImageCaptureBase;
 
     struct Params {
-        APawn* pawn; 
+        APawn* pawn;
         const NedTransform* global_transform;
         PawnEvents* pawn_events;
         common_utils::UniqueValueMap<std::string, APIPCamera*> cameras;
@@ -54,7 +55,7 @@ public: //types
             UParticleSystem* collision_display_template_val, const msr::airlib::GeoPoint home_geopoint_val,
             std::string vehicle_name_val)
         {
-            pawn = pawn_val; 
+            pawn = pawn_val;
             global_transform = global_transform_val;
             pawn_events = pawn_events_val;
             cameras = cameras_val;
@@ -98,6 +99,11 @@ public: //implementation of VehicleSimApiBase
     virtual const msr::airlib::Environment* getGroundTruthEnvironment() const override;
     virtual std::string getRecordFileLine(bool is_header_line) const override;
     virtual void reportState(msr::airlib::StateReporter& reporter) override;
+
+    virtual bool enablePhysics() override;
+    virtual bool disablePhysics() override;
+    virtual void disableCollisionsWithVehicle(const std::string& vehicle_name) override;
+    virtual void enableCollisionsWithVehicle(const std::string& vehicle_name) override;
 
 protected: //additional interface for derived class
     virtual void pawnTick(float dt);
@@ -176,7 +182,7 @@ private: //vars
         FVector last_debug_position;
         FVector current_position;
         FVector current_debug_position;
-        FVector debug_position_offset;        
+        FVector debug_position_offset;
         bool tracing_enabled;
         bool collisions_enabled;
         bool passthrough_enabled;
@@ -188,11 +194,13 @@ private: //vars
         FVector ground_offset;
         FVector transformation_offset;
     };
-    
+
     State state_, initial_state_;
 
     std::unique_ptr<msr::airlib::Kinematics> kinematics_;
     std::unique_ptr<msr::airlib::Environment> environment_;
+
+    std::set<std::string> disabledCollisions_;
 
     FColor trace_color_ = FColor::Purple;
     float trace_thickness_ = 3.0f;

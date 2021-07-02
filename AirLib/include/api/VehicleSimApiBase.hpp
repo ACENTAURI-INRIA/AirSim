@@ -23,7 +23,7 @@ public:
     }
 
     //this method is called at every render tick when we want to transfer state from
-    //physics engine to render engine. As physics engine is halted while 
+    //physics engine to render engine. As physics engine is halted while
     //this happens, this method should do minimal processing
     virtual void updateRenderedState(float dt)
     {
@@ -66,6 +66,11 @@ public:
     virtual std::string getRecordFileLine(bool is_header_line) const = 0;
     virtual void toggleTrace() = 0;
     virtual void setTraceLine(const std::vector<float>& color_rgba, float thickness) = 0;
+
+    virtual bool enablePhysics() = 0;
+    virtual bool disablePhysics() = 0;
+    virtual void disableCollisionsWithVehicle(const std::string& vehicle_name) = 0;
+    virtual void enableCollisionsWithVehicle(const std::string& vehicle_name) = 0;
 
     //use pointer here because of derived classes for VehicleSetting
     const AirSimSettings::VehicleSetting* getVehicleSetting() const

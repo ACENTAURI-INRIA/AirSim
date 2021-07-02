@@ -14,15 +14,15 @@
 #include "common/SteppableClock.hpp"
 #include <cinttypes>
 
-namespace msr 
-{ 
-namespace airlib 
+namespace msr
+{
+namespace airlib
 {
 
 class ExternalPhysicsEngine : public PhysicsEngineBase {
 public:
     ExternalPhysicsEngine()
-    { 
+    {
     }
 
     //*** Start: UpdatableState implementation ***//
@@ -36,8 +36,10 @@ public:
         PhysicsEngineBase::update();
 
         for (PhysicsBody* body_ptr : *this) {
-            body_ptr->updateKinematics();
-            body_ptr->update();
+            if(!body_ptr->physicsDisabled()) {
+                body_ptr->updateKinematics();
+                body_ptr->update();
+            }
         }
 
     }

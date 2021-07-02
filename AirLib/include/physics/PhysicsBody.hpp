@@ -15,7 +15,7 @@
 
 namespace msr { namespace airlib {
 
-class PhysicsBody : public UpdatableObject 
+class PhysicsBody : public UpdatableObject
 {
 public: //interface
     virtual real_T getRestitution() const = 0;
@@ -155,7 +155,7 @@ public: //methods
     real_T getMassInv()  const
     {
         return mass_inv_;
-    }    
+    }
     const Matrix3x3r& getInertia()  const
     {
         return inertia_;
@@ -245,6 +245,21 @@ public: //methods
         mutex_.unlock();
     }
 
+    void enablePhysics()
+    {
+        disabled_ = false;
+    }
+
+    void disablePhysics()
+    {
+        disabled_ = true;
+    }
+
+    bool physicsDisabled()
+    {
+        return disabled_;
+    }
+
 public:
     //for use in physics engine: //TODO: use getter/setter or friend method?
     TTimePoint last_kinematics_time;
@@ -264,6 +279,8 @@ private:
 
     bool grounded_ = false;
     std::mutex mutex_;
+
+    bool disabled_ = false;
 };
 
 }} //namespace
