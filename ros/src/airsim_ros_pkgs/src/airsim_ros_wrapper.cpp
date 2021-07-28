@@ -229,6 +229,7 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
 
             drone->rpy_throttle_cmd_sub = nh_private_.subscribe<airsim_ros_pkgs::RPYThrottleCmd>(curr_vehicle_name + "/rpy_throttle_cmd", 1,
                 boost::bind(&AirsimROSWrapper::rpy_throttle_cmd_cb, this, _1, vehicle_ros->vehicle_name));
+            drone->rotor_states_pub = nh_private_.advertise<airsim_ros_pkgs::RotorStates>(curr_vehicle_name + "/rotor_states", 1);
 
             drone->takeoff_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Takeoff::Request, airsim_ros_pkgs::Takeoff::Response>(curr_vehicle_name + "/takeoff",
                 boost::bind(&AirsimROSWrapper::takeoff_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
@@ -1129,6 +1130,18 @@ airsim_ros_pkgs::Environment AirsimROSWrapper::get_environment_msg_from_airsim(c
     return env_msg;
 }
 
+airsim_ros_pkgs::RotorStates AirsimROSWrapper::get_rotor_states_msg_from_rotor_states(const msr::airlib::RotorStates& rotor_states) const
+{
+    airsim_ros_pkgs::RotorStates rotor_states_msg;
+    for(auto &rotor_state : rotor_states.rotors) {
+        rotor_states_msg.thrusts.push_back(rotor_state.thrust);
+        rotor_states_msg.torques.push_back(rotor_state.torque_scaler);
+        rotor_states_msg.speeds.push_back(rotor_state.speed);
+    }
+
+    return rotor_states_msg;
+}
+
 std::string AirsimROSWrapper::get_vehicle_class(const VehicleROS& vehicle) const
 {
     std::string vtype = vehicle.vehicle_type;
@@ -1365,6 +1378,7 @@ ros::Time AirsimROSWrapper::update_state()
             auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
             auto rpc = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get());
             drone->curr_drone_state = rpc->getMultirotorState(vehicle_ros->vehicle_name);
+            drone->curr_rotor_states = rpc->getRotorStates(vehicle_ros->vehicle_name);
 
             vehicle_time = airsim_timestamp_to_ros(drone->curr_drone_state.timestamp);
             if (!got_sim_time)
@@ -1377,6 +1391,8 @@ ros::Time AirsimROSWrapper::update_state()
             vehicle_ros->gps_sensor_msg.header.stamp = vehicle_time;
 
             vehicle_ros->curr_odom = get_odom_msg_from_multirotor_state(drone->curr_drone_state);
+
+            drone->rotor_states_msg = get_rotor_states_msg_from_rotor_states(drone->curr_rotor_states);
 
             if(!vehicle_ros->attached_to_vehicle.empty() && !vehicle_ros->transform_to_attachment_vehicle_set) {
                 attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
@@ -1465,13 +1481,18 @@ void AirsimROSWrapper::publish_vehicle_state()
         // simulation environment truth
         vehicle_ros->env_pub.publish(vehicle_ros->env_msg);
 
-	std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
+        std::string curr_vehicle_class = get_vehicle_class(*vehicle_name_ptr_pair.second);
 
         if (curr_vehicle_class == kVehicleClassCar)
         {
             // dashboard reading from car, RPM, gear, etc
             auto car = static_cast<CarROS*>(vehicle_ros.get());
             car->car_state_pub.publish(car->car_state_msg);
+        }
+        else if (curr_vehicle_class == kVehicleClassDrone)
+        {
+            auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
+            drone->rotor_states_pub.publish(drone->rotor_states_msg);
         }
 
         // odom and transforms

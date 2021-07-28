@@ -29,6 +29,7 @@ STRICT_MODE_ON
 #include <airsim_ros_pkgs/CarControls.h>
 #include <airsim_ros_pkgs/CarState.h>
 #include <airsim_ros_pkgs/Environment.h>
+#include <airsim_ros_pkgs/RotorStates.h>
 #include <airsim_ros_pkgs/RPYThrottleCmd.h>
 #include <chrono>
 #include <cv_bridge/cv_bridge.h>
@@ -217,12 +218,16 @@ private:
     public:
         /// State
         msr::airlib::MultirotorState curr_drone_state;
+        msr::airlib::RotorStates curr_rotor_states;
         // bool in_air_; // todo change to "status" and keep track of this
+
+        airsim_ros_pkgs::RotorStates rotor_states_msg;
 
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
 
         ros::Subscriber rpy_throttle_cmd_sub;
+        ros::Publisher rotor_states_pub;
 
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
@@ -321,6 +326,7 @@ private:
     sensor_msgs::NavSatFix get_gps_msg_from_airsim(const msr::airlib::GpsBase::Output& gps_data) const;
     sensor_msgs::MagneticField get_mag_msg_from_airsim(const msr::airlib::MagnetometerBase::Output& mag_data) const;
     airsim_ros_pkgs::Environment get_environment_msg_from_airsim(const msr::airlib::Environment::State& env_data) const;
+    airsim_ros_pkgs::RotorStates get_rotor_states_msg_from_rotor_states(const msr::airlib::RotorStates& rotor_states) const;
     std::string get_vehicle_class(const VehicleROS& vehicle) const;
     std::string get_vehicle_class(const std::string& vehicle_type) const;
 
