@@ -36,6 +36,7 @@ AirsimROSWrapper::AirsimROSWrapper(const ros::NodeHandle& nh, const ros::NodeHan
     host_ip_(host_ip),
     airsim_client_images_(host_ip),
     airsim_client_lidar_(host_ip),
+    airsim_client_weather_(host_ip),
     airsim_settings_parser_(host_ip),
     tf_listener_(tf_buffer_)
 {
@@ -90,6 +91,7 @@ void AirsimROSWrapper::initialize_airsim()
 	}
         airsim_client_images_.confirmConnection();
         airsim_client_lidar_.confirmConnection();
+        airsim_client_weather_.confirmConnection();
 
 
         for (const auto& vehicle_name_ptr_pair : vehicle_name_ptr_map_)
@@ -403,6 +405,10 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
     // todo add per vehicle reset in AirLib API
     reset_srvr_ = nh_private_.advertiseService("reset",&AirsimROSWrapper::reset_srv_cb, this);
 
+    // add weather services
+    enable_weather_srvr_ = nh_private_.advertiseService("enable_weather", &AirsimROSWrapper::enable_weather_srv_cb, this);
+    set_wind_srvr_ = nh_private_.advertiseService("set_wind", &AirsimROSWrapper::set_wind_srv_cb, this);
+
     if (publish_clock_)
     {
         clock_pub_ = nh_private_.advertise<rosgraph_msgs::Clock>("clock", 1);
@@ -673,7 +679,8 @@ bool AirsimROSWrapper::reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, ai
     return true; //todo
 }
 
-bool AirsimROSWrapper::arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name) {
+bool AirsimROSWrapper::arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name)
+{
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
 
     if(request.data) {
@@ -688,7 +695,8 @@ bool AirsimROSWrapper::arm_disarm_srv_cb(std_srvs::SetBool::Request& request, st
     return true; //todo
 }
 
-bool AirsimROSWrapper::enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name) {
+bool AirsimROSWrapper::enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name)
+{
     std::lock_guard<std::mutex> guard(drone_control_mutex_);
 
     if(request.data) {
@@ -698,6 +706,31 @@ bool AirsimROSWrapper::enable_disable_physics_srv_cb(std_srvs::SetBool::Request&
     }
 
     return response.success;
+}
+
+bool AirsimROSWrapper::enable_weather_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response)
+{
+    airsim_client_weather_.simEnableWeather(request.data);
+    weather_enabled_ = request.data;
+    response.success = true;
+    return true;
+}
+
+bool AirsimROSWrapper::set_wind_srv_cb(airsim_ros_pkgs::SetWind::Request& request, airsim_ros_pkgs::SetWind::Response& response)
+{
+    if(!weather_enabled_) {
+        airsim_client_weather_.simEnableWeather(true);
+        weather_enabled_ = true;
+    }
+
+    if(odom_frame_id_ == ENU_ODOM_FRAME_ID) {
+        airsim_client_weather_.simSetWind(msr::airlib::Vector3r(request.wind_speed.y, request.wind_speed.x, -request.wind_speed.z));
+    } else {
+        airsim_client_weather_.simSetWind(msr::airlib::Vector3r(request.wind_speed.x, request.wind_speed.y, request.wind_speed.z));
+    }
+
+    response.success = true;
+    return true;
 }
 
 tf2::Quaternion AirsimROSWrapper::get_tf2_quat(const msr::airlib::Quaternionr& airlib_quat) const

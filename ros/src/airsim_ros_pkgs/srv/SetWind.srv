@@ -1,0 +1,6 @@
+# Wind speed in m/s, vector
+# is either in NED or ENU coordinates
+# depending on parameters
+geometry_msgs/Vector3 wind_speed
+---
+bool success

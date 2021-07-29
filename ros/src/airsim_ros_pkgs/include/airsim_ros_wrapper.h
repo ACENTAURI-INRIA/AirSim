@@ -31,11 +31,13 @@ STRICT_MODE_ON
 #include <airsim_ros_pkgs/Environment.h>
 #include <airsim_ros_pkgs/RotorStates.h>
 #include <airsim_ros_pkgs/RPYThrottleCmd.h>
+#include <airsim_ros_pkgs/SetWind.h>
 #include <chrono>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/Vector3.h>
 #include <image_transport/image_transport.h>
 #include <iostream>
 #include <math.h>
@@ -286,6 +288,8 @@ private:
     bool reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, airsim_ros_pkgs::Reset::Response& response);
     bool arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
     bool enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
+    bool enable_weather_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response);
+    bool set_wind_srv_cb(airsim_ros_pkgs::SetWind::Request& request, airsim_ros_pkgs::SetWind::Response& response);
 
     /// ROS tf broadcasters
     void publish_camera_tf(const ImageResponse& img_response, const ros::Time& ros_time, const std::string& frame_id, const std::string& child_frame_id);
@@ -358,6 +362,11 @@ private:
     msr::airlib::GeoPoint origin_geo_point_;// gps coord of unreal origin
     airsim_ros_pkgs::GPSYaw origin_geo_point_msg_; // todo duplicate
 
+    // Weather services
+    ros::ServiceServer enable_weather_srvr_;
+    ros::ServiceServer set_wind_srvr_;
+    bool weather_enabled_ = false;
+
     AirSimSettingsParser airsim_settings_parser_;
     std::unordered_map< std::string, std::unique_ptr< VehicleROS > > vehicle_name_ptr_map_;
     static const std::unordered_map<int, std::string> image_type_int_to_string_map_;
@@ -370,6 +379,7 @@ private:
     // seperate busy connections to airsim, update in their own thread
     msr::airlib::RpcLibClientBase airsim_client_images_;
     msr::airlib::RpcLibClientBase airsim_client_lidar_;
+    msr::airlib::RpcLibClientBase airsim_client_weather_;
 
     ros::NodeHandle nh_;
     ros::NodeHandle nh_private_;
