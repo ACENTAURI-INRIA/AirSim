@@ -252,6 +252,12 @@ void MultirotorRpcLibClient::moveByRC(const RCData& rc_data, const std::string& 
     static_cast<rpc::client*>(getClient())->call("moveByRC", MultirotorRpcLibAdaptors::RCData(rc_data), vehicle_name);
 }
 
+msr::airlib::Wrench MultirotorRpcLibClient::getWindWrenchGroundTruth(const std::string& vehicle_name)
+{
+    return static_cast<rpc::client*>(getClient())->call("getWindWrenchGroundTruth", vehicle_name).
+        as<MultirotorRpcLibAdaptors::Wrench>().to();
+}
+
 //return value of last task. It should be true if task completed without
 //cancellation or timeout
 MultirotorRpcLibClient* MultirotorRpcLibClient::waitOnLastTask(bool* task_result, float timeout_sec)

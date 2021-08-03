@@ -186,6 +186,11 @@ MultirotorRpcLibServer::MultirotorRpcLibServer(ApiProvider* api_provider, string
         bind("resetPositionGoal", [&](const std::string& vehicle_name) -> void {
         getVehicleApi(vehicle_name)->resetPositionGoal();
     });
+    // Wind GT
+    (static_cast<rpc::server*>(getServer()))->
+        bind("getWindWrenchGroundTruth", [&](const std::string& vehicle_name) -> MultirotorRpcLibAdaptors::Wrench {
+        return MultirotorRpcLibAdaptors::Wrench(getVehicleSimApi(vehicle_name)->getWindWrench());
+    });
 }
 
 //required for pimpl

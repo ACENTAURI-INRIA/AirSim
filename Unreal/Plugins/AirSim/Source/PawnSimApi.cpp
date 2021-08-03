@@ -332,12 +332,19 @@ bool PawnSimApi::disablePhysics()
     return false;
 }
 
-void PawnSimApi::disableCollisionsWithVehicle(const std::string& vehicle_name) {
+void PawnSimApi::disableCollisionsWithVehicle(const std::string& vehicle_name)
+{
     disabledCollisions_.insert(vehicle_name);
 }
 
-void PawnSimApi::enableCollisionsWithVehicle(const std::string& vehicle_name) {
+void PawnSimApi::enableCollisionsWithVehicle(const std::string& vehicle_name)
+{
     disabledCollisions_.erase(vehicle_name);
+}
+
+msr::airlib::Wrench PawnSimApi::getWindWrench()
+{
+    return msr::airlib::Wrench::zero();
 }
 
 //void playBack()

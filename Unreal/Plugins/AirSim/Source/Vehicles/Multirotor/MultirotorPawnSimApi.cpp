@@ -152,6 +152,11 @@ void MultirotorPawnSimApi::setPose(const Pose& pose, bool ignore_collision)
     pending_pose_status_ = PendingPoseStatus::RenderPending;
 }
 
+Wrench MultirotorPawnSimApi::getWindWrench()
+{
+    return multirotor_physics_body_->getWindWrench();
+}
+
 //*** Start: UpdatableState implementation ***//
 void MultirotorPawnSimApi::resetImplementation()
 {

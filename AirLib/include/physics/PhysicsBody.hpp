@@ -212,6 +212,14 @@ public: //methods
     {
         wrench_ = wrench;
     }
+    void setWindWrench(const Wrench&  wind_wrench)
+    {
+        wind_wrench_ = wind_wrench;
+    }
+    Wrench getWindWrench()
+    {
+        return wind_wrench_;
+    }
     const CollisionInfo& getCollisionInfo() const
     {
         return collision_info_;
@@ -273,6 +281,7 @@ private:
 
     //force is in world frame but torque is not
     Wrench wrench_;
+    Wrench wind_wrench_;
 
     CollisionInfo collision_info_;
     CollisionResponse collision_response_;

@@ -35,6 +35,7 @@ public: //types
     typedef msr::airlib::Utils Utils;
     typedef msr::airlib::AirSimSettings::VehicleSetting VehicleSetting;
     typedef msr::airlib::ImageCaptureBase ImageCaptureBase;
+    typedef msr::airlib::Wrench Wrench;
 
     struct Params {
         APawn* pawn;
@@ -104,6 +105,8 @@ public: //implementation of VehicleSimApiBase
     virtual bool disablePhysics() override;
     virtual void disableCollisionsWithVehicle(const std::string& vehicle_name) override;
     virtual void enableCollisionsWithVehicle(const std::string& vehicle_name) override;
+
+    virtual Wrench getWindWrench() override;
 
 protected: //additional interface for derived class
     virtual void pawnTick(float dt);

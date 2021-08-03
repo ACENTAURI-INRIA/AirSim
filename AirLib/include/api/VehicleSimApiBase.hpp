@@ -72,6 +72,8 @@ public:
     virtual void disableCollisionsWithVehicle(const std::string& vehicle_name) = 0;
     virtual void enableCollisionsWithVehicle(const std::string& vehicle_name) = 0;
 
+    virtual Wrench getWindWrench() = 0;
+
     //use pointer here because of derived classes for VehicleSetting
     const AirSimSettings::VehicleSetting* getVehicleSetting() const
     {

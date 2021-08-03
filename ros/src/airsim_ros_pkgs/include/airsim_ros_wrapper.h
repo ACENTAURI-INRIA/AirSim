@@ -38,6 +38,7 @@ STRICT_MODE_ON
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Vector3.h>
+#include <geometry_msgs/Wrench.h>
 #include <image_transport/image_transport.h>
 #include <iostream>
 #include <math.h>
@@ -221,15 +222,19 @@ private:
         /// State
         msr::airlib::MultirotorState curr_drone_state;
         msr::airlib::RotorStates curr_rotor_states;
+        msr::airlib::Wrench curr_wind_wrench;
         // bool in_air_; // todo change to "status" and keep track of this
 
         airsim_ros_pkgs::RotorStates rotor_states_msg;
+        geometry_msgs::Wrench wind_wrench_msg;
 
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
 
         ros::Subscriber rpy_throttle_cmd_sub;
         ros::Publisher rotor_states_pub;
+
+        ros::Publisher wind_gt_pub;
 
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
@@ -331,6 +336,7 @@ private:
     sensor_msgs::MagneticField get_mag_msg_from_airsim(const msr::airlib::MagnetometerBase::Output& mag_data) const;
     airsim_ros_pkgs::Environment get_environment_msg_from_airsim(const msr::airlib::Environment::State& env_data) const;
     airsim_ros_pkgs::RotorStates get_rotor_states_msg_from_rotor_states(const msr::airlib::RotorStates& rotor_states) const;
+    geometry_msgs::Wrench get_wrench_msg_from_airsim(const msr::airlib::Wrench& wrench) const;
     std::string get_vehicle_class(const VehicleROS& vehicle) const;
     std::string get_vehicle_class(const std::string& vehicle_type) const;
 

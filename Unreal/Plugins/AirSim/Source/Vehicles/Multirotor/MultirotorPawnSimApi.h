@@ -22,6 +22,7 @@ public:
     typedef msr::airlib::StateReporter StateReporter;
     typedef msr::airlib::UpdatableObject UpdatableObject;
     typedef msr::airlib::Pose Pose;
+    typedef msr::airlib::Wrench Wrench;
 
     typedef MultirotorPawnEvents::RotorActuatorInfo RotorActuatorInfo;
 
@@ -48,6 +49,9 @@ public:
 
     virtual void setPose(const Pose& pose, bool ignore_collision) override;
     virtual void pawnTick(float dt) override;
+
+    // Get wind force ground truth
+    virtual Wrench getWindWrench() override;
 
     msr::airlib::MultirotorApiBase* getVehicleApi() const
     {

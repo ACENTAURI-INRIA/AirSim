@@ -233,6 +233,8 @@ void AirsimROSWrapper::create_ros_pubs_from_settings_json()
                 boost::bind(&AirsimROSWrapper::rpy_throttle_cmd_cb, this, _1, vehicle_ros->vehicle_name));
             drone->rotor_states_pub = nh_private_.advertise<airsim_ros_pkgs::RotorStates>(curr_vehicle_name + "/rotor_states", 1);
 
+            drone->wind_gt_pub = nh_private_.advertise<geometry_msgs::Wrench>(curr_vehicle_name + "/wind_gt", 1);
+
             drone->takeoff_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Takeoff::Request, airsim_ros_pkgs::Takeoff::Response>(curr_vehicle_name + "/takeoff",
                 boost::bind(&AirsimROSWrapper::takeoff_srv_cb, this, _1, _2, vehicle_ros->vehicle_name) );
             drone->land_srvr = nh_private_.advertiseService<airsim_ros_pkgs::Land::Request, airsim_ros_pkgs::Land::Response>(curr_vehicle_name + "/land",
@@ -1175,6 +1177,20 @@ airsim_ros_pkgs::RotorStates AirsimROSWrapper::get_rotor_states_msg_from_rotor_s
     return rotor_states_msg;
 }
 
+geometry_msgs::Wrench AirsimROSWrapper::get_wrench_msg_from_airsim(const msr::airlib::Wrench& wrench) const
+{
+    geometry_msgs::Wrench wrench_msg;
+
+    wrench_msg.force.x = wrench.force(0);
+    wrench_msg.force.y = wrench.force(1);
+    wrench_msg.force.z = wrench.force(2);
+    wrench_msg.torque.x = wrench.torque(0);
+    wrench_msg.torque.y = wrench.torque(1);
+    wrench_msg.torque.z = wrench.torque(2);
+
+    return wrench_msg;
+}
+
 std::string AirsimROSWrapper::get_vehicle_class(const VehicleROS& vehicle) const
 {
     std::string vtype = vehicle.vehicle_type;
@@ -1412,6 +1428,7 @@ ros::Time AirsimROSWrapper::update_state()
             auto rpc = static_cast<msr::airlib::MultirotorRpcLibClient*>(airsim_client_drones_.get());
             drone->curr_drone_state = rpc->getMultirotorState(vehicle_ros->vehicle_name);
             drone->curr_rotor_states = rpc->getRotorStates(vehicle_ros->vehicle_name);
+            drone->curr_wind_wrench = rpc->getWindWrenchGroundTruth(vehicle_ros->vehicle_name);
 
             vehicle_time = airsim_timestamp_to_ros(drone->curr_drone_state.timestamp);
             if (!got_sim_time)
@@ -1426,6 +1443,15 @@ ros::Time AirsimROSWrapper::update_state()
             vehicle_ros->curr_odom = get_odom_msg_from_multirotor_state(drone->curr_drone_state);
 
             drone->rotor_states_msg = get_rotor_states_msg_from_rotor_states(drone->curr_rotor_states);
+            drone->wind_wrench_msg = get_wrench_msg_from_airsim(drone->curr_wind_wrench);
+
+            if (isENU_)
+            {
+                std::swap(drone->wind_wrench_msg.force.x, drone->wind_wrench_msg.force.y);
+                std::swap(drone->wind_wrench_msg.torque.x, drone->wind_wrench_msg.torque.y);
+                drone->wind_wrench_msg.force.z = -drone->wind_wrench_msg.force.z;
+                drone->wind_wrench_msg.torque.z = -drone->wind_wrench_msg.torque.z;
+            }
 
             if(!vehicle_ros->attached_to_vehicle.empty() && !vehicle_ros->transform_to_attachment_vehicle_set) {
                 attachment_vehicle_pose = rpc->simGetVehiclePose(vehicle_ros->attached_to_vehicle);
@@ -1526,6 +1552,7 @@ void AirsimROSWrapper::publish_vehicle_state()
         {
             auto drone = static_cast<MultiRotorROS*>(vehicle_ros.get());
             drone->rotor_states_pub.publish(drone->rotor_states_msg);
+            drone->wind_gt_pub.publish(drone->wind_wrench_msg);
         }
 
         // odom and transforms
