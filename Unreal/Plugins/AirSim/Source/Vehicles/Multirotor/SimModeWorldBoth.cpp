@@ -147,7 +147,8 @@ PawnEvents* ASimModeWorldBoth::getVehiclePawnEvents(APawn* pawn) const
     std::string vehicle_type = getVehicleType(pawn);
     if (vehicle_type == AirSimSettings::kVehicleTypePhysXCar){
         return static_cast<TCarPawn*>(pawn)->getPawnEvents();
-    } else {
+    } 
+    else {
         return static_cast<TFlyingPawn*>(pawn)->getPawnEvents();
     }
 }
@@ -166,7 +167,8 @@ void ASimModeWorldBoth::initializeVehiclePawn(APawn* pawn)
     std::string vehicle_type = getVehicleType(pawn);
     if (vehicle_type == AirSimSettings::kVehicleTypePhysXCar){
         static_cast<TCarPawn*>(pawn)->initializeForBeginPlay(getSettings().engine_sound);
-    } else {
+    } 
+    else {
         static_cast<TFlyingPawn*>(pawn)->initializeForBeginPlay();
     }
 }
@@ -177,11 +179,13 @@ std::unique_ptr<PawnSimApi> ASimModeWorldBoth::createVehicleSimApi(
     std::string vehicle_type = getVehicleType(pawn);
     if (vehicle_type == AirSimSettings::kVehicleTypePhysXCar){
         auto vehicle_pawn = static_cast<TCarPawn*>(pawn_sim_api_params.pawn);
-        auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params, vehicle_pawn->getKeyBoardControls(), vehicle_pawn->getVehicleMovementComponent()));
+        auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params,
+                                                                             vehicle_pawn->getKeyBoardControls()));
         vehicle_sim_api->initialize();
         // vehicle_sim_api->reset();
         return vehicle_sim_api;
-    } else {
+    }
+    else {
         auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new MultirotorPawnSimApi(pawn_sim_api_params));
         vehicle_sim_api->initialize();
         //For multirotors the vehicle_sim_api are in PhysicsWorld container and then get reseted when world gets reseted

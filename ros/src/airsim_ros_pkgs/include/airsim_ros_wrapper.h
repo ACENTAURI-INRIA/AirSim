@@ -4,7 +4,7 @@ STRICT_MODE_OFF //todo what does this do?
 #define RPCLIB_MSGPACK clmdep_msgpack
 #endif // !RPCLIB_MSGPACK
 #include "rpc/rpc_error.h"
-STRICT_MODE_ON
+    STRICT_MODE_ON
 
 #include "airsim_settings_parser.h"
 #include "common/AirSimSettings.hpp"
@@ -15,7 +15,6 @@ STRICT_MODE_ON
 #include "vehicles/multirotor/api/MultirotorRpcLibClient.hpp"
 #include "vehicles/car/api/CarRpcLibClient.hpp"
 #include "yaml-cpp/yaml.h"
-#include <airsim_ros_pkgs/AttachToVehicle.h>
 #include <airsim_ros_pkgs/GimbalAngleEulerCmd.h>
 #include <airsim_ros_pkgs/GimbalAngleQuatCmd.h>
 #include <airsim_ros_pkgs/GPSYaw.h>
@@ -29,16 +28,11 @@ STRICT_MODE_ON
 #include <airsim_ros_pkgs/CarControls.h>
 #include <airsim_ros_pkgs/CarState.h>
 #include <airsim_ros_pkgs/Environment.h>
-#include <airsim_ros_pkgs/RotorStates.h>
-#include <airsim_ros_pkgs/RPYThrottleCmd.h>
-#include <airsim_ros_pkgs/SetWind.h>
 #include <chrono>
 #include <cv_bridge/cv_bridge.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Twist.h>
-#include <geometry_msgs/Vector3.h>
-#include <geometry_msgs/Wrench.h>
 #include <image_transport/image_transport.h>
 #include <iostream>
 #include <math.h>
@@ -60,8 +54,6 @@ STRICT_MODE_ON
 #include <sensor_msgs/Range.h>
 #include <rosgraph_msgs/Clock.h>
 #include <std_srvs/Empty.h>
-#include <std_srvs/SetBool.h>
-#include <std_srvs/Trigger.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -71,18 +63,9 @@ STRICT_MODE_ON
 #include <tf2/convert.h>
 #include <unordered_map>
 #include <memory>
-// #include "nodelet/nodelet.h"
+    // #include "nodelet/nodelet.h"
 
-// todo move airlib typedefs to separate header file?
-typedef msr::airlib::ImageCaptureBase::ImageRequest ImageRequest;
-typedef msr::airlib::ImageCaptureBase::ImageResponse ImageResponse;
-typedef msr::airlib::ImageCaptureBase::ImageType ImageType;
-typedef msr::airlib::AirSimSettings::CaptureSetting CaptureSetting;
-typedef msr::airlib::AirSimSettings::VehicleSetting VehicleSetting;
-typedef msr::airlib::AirSimSettings::CameraSetting CameraSetting;
-typedef msr::airlib::AirSimSettings::LidarSetting LidarSetting;
-
-struct SimpleMatrix
+    struct SimpleMatrix
 {
     int rows;
     int cols;
@@ -90,7 +73,8 @@ struct SimpleMatrix
 
     SimpleMatrix(int rows, int cols, double* data)
         : rows(rows), cols(cols), data(data)
-    {}
+    {
+    }
 };
 
 struct VelCmd
@@ -133,16 +117,26 @@ struct GimbalCmd
 
 class AirsimROSWrapper
 {
+    using AirSimSettings = msr::airlib::AirSimSettings;
+    using SensorBase = msr::airlib::SensorBase;
+    using CameraSetting = msr::airlib::AirSimSettings::CameraSetting;
+    using CaptureSetting = msr::airlib::AirSimSettings::CaptureSetting;
+    using LidarSetting = msr::airlib::AirSimSettings::LidarSetting;
+    using VehicleSetting = msr::airlib::AirSimSettings::VehicleSetting;
+    using ImageRequest = msr::airlib::ImageCaptureBase::ImageRequest;
+    using ImageResponse = msr::airlib::ImageCaptureBase::ImageResponse;
+    using ImageType = msr::airlib::ImageCaptureBase::ImageType;
+
 public:
     enum class AIRSIM_MODE : unsigned
     {
         DRONE,
         CAR,
-        BOTH
+	    BOTH
     };
 
-    AirsimROSWrapper(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private, const std::string & host_ip);
-    ~AirsimROSWrapper() {};
+    AirsimROSWrapper(const ros::NodeHandle& nh, const ros::NodeHandle& nh_private, const std::string& host_ip);
+    ~AirsimROSWrapper(){};
 
     void initialize_airsim();
     void initialize_ros();
@@ -157,7 +151,6 @@ private:
     static constexpr char const* kVehicleClassDrone = "drone";
     static constexpr char const* kVehicleClassCar = "car";
     static constexpr char const* kVehicleClassCV = "cv";
-
     struct SensorPublisher
     {
         SensorBase::SensorType sensor_type;
@@ -171,7 +164,7 @@ private:
     public:
         virtual ~VehicleROS() {}
         std::string vehicle_name;
-	std::string vehicle_type;
+	    std::string vehicle_type;
 
         /// All things ROS
         ros::Publisher odom_local_pub;
@@ -181,8 +174,6 @@ private:
         std::vector<SensorPublisher> sensor_pubs;
         // handle lidar seperately for max performance as data is collected on its own thread/callback
         std::vector<SensorPublisher> lidar_pubs;
-        ros::ServiceServer attach_to_vehicle_srvr;
-        ros::ServiceServer detach_from_vehicle_srvr;
 
         nav_msgs::Odometry curr_odom;
         sensor_msgs::NavSatFix gps_sensor_msg;
@@ -191,13 +182,7 @@ private:
 
         ros::Time stamp;
 
-
         std::string odom_frame_id;
-
-        std::string attached_to_vehicle = "";
-        geometry_msgs::Pose transform_to_attachment_vehicle;
-        bool transform_to_attachment_vehicle_set = false;
-
         /// Status
         // bool is_armed_;
         // std::string mode_;
@@ -221,31 +206,16 @@ private:
     public:
         /// State
         msr::airlib::MultirotorState curr_drone_state;
-        msr::airlib::RotorStates curr_rotor_states;
-        msr::airlib::Wrench curr_wind_wrench;
         // bool in_air_; // todo change to "status" and keep track of this
-
-        airsim_ros_pkgs::RotorStates rotor_states_msg;
-        geometry_msgs::Wrench wind_wrench_msg;
 
         ros::Subscriber vel_cmd_body_frame_sub;
         ros::Subscriber vel_cmd_world_frame_sub;
 
-        ros::Subscriber rpy_throttle_cmd_sub;
-        ros::Publisher rotor_states_pub;
-
-        ros::Publisher wind_gt_pub;
-
         ros::ServiceServer takeoff_srvr;
         ros::ServiceServer land_srvr;
-        ros::ServiceServer arm_disarm_srvr;
-        ros::ServiceServer enable_disable_physics_srvr;
 
         bool has_vel_cmd;
         VelCmd vel_cmd;
-
-        bool has_rpy_throttle_cmd;
-        airsim_ros_pkgs::RPYThrottleCmd rpy_throttle_cmd;
 
         /// Status
         // bool in_air_; // todo change to "status" and keep track of this
@@ -259,8 +229,6 @@ private:
     /// ROS subscriber callbacks
     void vel_cmd_world_frame_cb(const airsim_ros_pkgs::VelCmd::ConstPtr& msg, const std::string& vehicle_name);
     void vel_cmd_body_frame_cb(const airsim_ros_pkgs::VelCmd::ConstPtr& msg, const std::string& vehicle_name);
-
-    void rpy_throttle_cmd_cb(const airsim_ros_pkgs::RPYThrottleCmd::ConstPtr& msg, const std::string& vehicle_name);
 
     void vel_cmd_group_body_frame_cb(const airsim_ros_pkgs::VelCmdGroup& msg);
     void vel_cmd_group_world_frame_cb(const airsim_ros_pkgs::VelCmdGroup& msg);
@@ -282,8 +250,6 @@ private:
     void publish_vehicle_state();
 
     /// ROS service callbacks
-    bool attach_to_vehicle_srv_cb(airsim_ros_pkgs::AttachToVehicle::Request& request, airsim_ros_pkgs::AttachToVehicle::Response& response, const std::string& vehicle_name);
-    bool detach_from_vehicle_srv_cb(std_srvs::Trigger::Request& request, std_srvs::Trigger::Response& response, const std::string& vehicle_name);
     bool takeoff_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response, const std::string& vehicle_name);
     bool takeoff_group_srv_cb(airsim_ros_pkgs::TakeoffGroup::Request& request, airsim_ros_pkgs::TakeoffGroup::Response& response);
     bool takeoff_all_srv_cb(airsim_ros_pkgs::Takeoff::Request& request, airsim_ros_pkgs::Takeoff::Response& response);
@@ -291,10 +257,6 @@ private:
     bool land_group_srv_cb(airsim_ros_pkgs::LandGroup::Request& request, airsim_ros_pkgs::LandGroup::Response& response);
     bool land_all_srv_cb(airsim_ros_pkgs::Land::Request& request, airsim_ros_pkgs::Land::Response& response);
     bool reset_srv_cb(airsim_ros_pkgs::Reset::Request& request, airsim_ros_pkgs::Reset::Response& response);
-    bool arm_disarm_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
-    bool enable_disable_physics_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response, const std::string& vehicle_name);
-    bool enable_weather_srv_cb(std_srvs::SetBool::Request& request, std_srvs::SetBool::Response& response);
-    bool set_wind_srv_cb(airsim_ros_pkgs::SetWind::Request& request, airsim_ros_pkgs::SetWind::Response& response);
 
     /// ROS tf broadcasters
     void publish_camera_tf(const ImageResponse& img_response, const ros::Time& ros_time, const std::string& frame_id, const std::string& child_frame_id);
@@ -331,12 +293,10 @@ private:
     sensor_msgs::Imu get_imu_msg_from_airsim(const msr::airlib::ImuBase::Output& imu_data) const;
     airsim_ros_pkgs::Altimeter get_altimeter_msg_from_airsim(const msr::airlib::BarometerBase::Output& alt_data) const;
     sensor_msgs::Range get_range_from_airsim(const msr::airlib::DistanceSensorData& dist_data) const;
-    sensor_msgs::PointCloud2 get_lidar_msg_from_airsim(const msr::airlib::LidarData& lidar_data, const std::string& vehicle_name) const;
+    sensor_msgs::PointCloud2 get_lidar_msg_from_airsim(const msr::airlib::LidarData& lidar_data, const std::string& vehicle_name, const std::string& sensor_name) const;
     sensor_msgs::NavSatFix get_gps_msg_from_airsim(const msr::airlib::GpsBase::Output& gps_data) const;
     sensor_msgs::MagneticField get_mag_msg_from_airsim(const msr::airlib::MagnetometerBase::Output& mag_data) const;
     airsim_ros_pkgs::Environment get_environment_msg_from_airsim(const msr::airlib::Environment::State& env_data) const;
-    airsim_ros_pkgs::RotorStates get_rotor_states_msg_from_rotor_states(const msr::airlib::RotorStates& rotor_states) const;
-    geometry_msgs::Wrench get_wrench_msg_from_airsim(const msr::airlib::Wrench& wrench) const;
     std::string get_vehicle_class(const VehicleROS& vehicle) const;
     std::string get_vehicle_class(const std::string& vehicle_type) const;
 
@@ -348,7 +308,16 @@ private:
     ros::Time airsim_timestamp_to_ros(const msr::airlib::TTimePoint& stamp) const;
     ros::Time chrono_timestamp_to_ros(const std::chrono::system_clock::time_point& stamp) const;
 
+    // Utility methods to convert airsim_client_
+    msr::airlib::MultirotorRpcLibClient* get_multirotor_client();
+    msr::airlib::CarRpcLibClient* get_car_client();
+
 private:
+    ros::NodeHandle nh_;
+    ros::NodeHandle nh_private_;
+
+    std::string host_ip_;
+
     // subscriber / services for ALL robots
     ros::Subscriber vel_cmd_all_body_frame_sub_;
     ros::Subscriber vel_cmd_all_world_frame_sub_;
@@ -365,30 +334,20 @@ private:
 
     ros::ServiceServer reset_srvr_;
     ros::Publisher origin_geo_point_pub_; // home geo coord of drones
-    msr::airlib::GeoPoint origin_geo_point_;// gps coord of unreal origin
+    msr::airlib::GeoPoint origin_geo_point_; // gps coord of unreal origin
     airsim_ros_pkgs::GPSYaw origin_geo_point_msg_; // todo duplicate
 
-    // Weather services
-    ros::ServiceServer enable_weather_srvr_;
-    ros::ServiceServer set_wind_srvr_;
-    bool weather_enabled_ = false;
-
     AirSimSettingsParser airsim_settings_parser_;
-    std::unordered_map< std::string, std::unique_ptr< VehicleROS > > vehicle_name_ptr_map_;
+    std::unordered_map<std::string, std::unique_ptr<VehicleROS>> vehicle_name_ptr_map_;
     static const std::unordered_map<int, std::string> image_type_int_to_string_map_;
 
     bool is_vulkan_; // rosparam obtained from launch file. If vulkan is being used, we BGR encoding instead of RGB
 
-    std::string host_ip_;
     std::unique_ptr<msr::airlib::RpcLibClientBase> airsim_client_drones_ = nullptr;
     std::unique_ptr<msr::airlib::RpcLibClientBase> airsim_client_cars_ = nullptr;
     // seperate busy connections to airsim, update in their own thread
     msr::airlib::RpcLibClientBase airsim_client_images_;
     msr::airlib::RpcLibClientBase airsim_client_lidar_;
-    msr::airlib::RpcLibClientBase airsim_client_weather_;
-
-    ros::NodeHandle nh_;
-    ros::NodeHandle nh_private_;
 
     // todo not sure if async spinners shuold be inside this class, or should be instantiated in airsim_node.cpp, and cb queues should be public
     // todo for multiple drones with multiple sensors, this won't scale. make it a part of VehicleROS?
@@ -437,13 +396,12 @@ private:
     ros::Subscriber gimbal_angle_quat_cmd_sub_;
     ros::Subscriber gimbal_angle_euler_cmd_sub_;
 
-    static constexpr char CAM_YML_NAME[]    = "camera_name";
-    static constexpr char WIDTH_YML_NAME[]  = "image_width";
+    static constexpr char CAM_YML_NAME[] = "camera_name";
+    static constexpr char WIDTH_YML_NAME[] = "image_width";
     static constexpr char HEIGHT_YML_NAME[] = "image_height";
-    static constexpr char K_YML_NAME[]      = "camera_matrix";
-    static constexpr char D_YML_NAME[]      = "distortion_coefficients";
-    static constexpr char R_YML_NAME[]      = "rectification_matrix";
-    static constexpr char P_YML_NAME[]      = "projection_matrix";
+    static constexpr char K_YML_NAME[] = "camera_matrix";
+    static constexpr char D_YML_NAME[] = "distortion_coefficients";
+    static constexpr char R_YML_NAME[] = "rectification_matrix";
+    static constexpr char P_YML_NAME[] = "projection_matrix";
     static constexpr char DMODEL_YML_NAME[] = "distortion_model";
-
 };

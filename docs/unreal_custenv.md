@@ -1,36 +1,40 @@
 # Creating and Setting Up Unreal Environment
 This page contains the complete instructions start to finish for setting up Unreal environment with AirSim. The Unreal Marketplace has [several environment](https://www.unrealengine.com/marketplace/content-cat/assets/environments) available that you can start using in just few minutes. It is also possible to use environments available on websites such as [turbosquid.com](https://www.turbosquid.com/) or [cgitrader.com](https://www.cgtrader.com/) with bit more effort (here's [tutorial video](https://www.youtube.com/watch?v=y09VbdQWvQY&feature)). In addition there also several [free environments](https://github.com/Microsoft/AirSim/issues/424) available.
 
-Below we will use a freely downloadable environment from Unreal Marketplace called Landscape Mountain but the steps are same for any other environments. You can also view these steps performed in [Unreal AirSim Setup Video](https://youtu.be/1oY8Qu5maQQ).
+Below we will use a freely downloadable environment from Unreal Marketplace called Landscape Mountain but the steps are same for any other environments.
 
 ## Note for Linux Users
 There is no `Epic Games Launcher` for Linux which means that if you need to create custom environment, you will need Windows machine to do that. Once you have Unreal project folder, just copy it over to your Linux machine.
 
 ## Step by Step Instructions
 
-1. Make sure AirSim is built and Unreal 4.24 is installed as described in [build instructions](build_windows.md).
-2. In `Epic Games Launcher` click the Learn tab then scroll down and find `Landscape Mountains`. Click the `Create Project` and download this content (~2GB download).
+1. Make sure AirSim is built and Unreal 4.27 is installed as described in [build instructions](build_windows.md).
+1. In `Epic Games Launcher` click the Learn tab then scroll down and find `Landscape Mountains`. Click the `Create Project` and download this content (~2GB download).
 
     ![current version](images/landscape_mountains.png)
 
-3. Open `LandscapeMountains.uproject`, it should launch the Unreal Editor.
+1. Open `LandscapeMountains.uproject`, it should launch the Unreal Editor.
 
     ![unreal editor](images/unreal_editor.png)
+    
+    !!!note
 
-4. From the `File menu` select `New C++ class`, leave default `None` on the type of class, click `Next`, leave default name `MyClass`, and click `Create Class`. We need to do this because Unreal requires at least one source file in project. It should trigger compile and open up Visual Studio solution `LandscapeMountains.sln`.
+        The Landscape Mountains project is supported up to Unreal Engine version 4.24. If you do not have 4.24 installed, you should see a dialog titled `Select Unreal Engine Version` with a dropdown to select from installed versions. Select 4.27 or greater to migrate the project to a supported engine version. If you have 4.24 installed, you can manually migrate the project by navigating to the corresponding .uproject file in Windows Explorer, right-clicking it, and selecting the `Switch Unreal Engine version...` option. 
 
-5. Go to your folder for AirSim repo and copy `Unreal\Plugins` folder in to your `LandscapeMountains` folder. This way now your own Unreal project has AirSim plugin.
+1. From the `File menu` select `New C++ class`, leave default `None` on the type of class, click `Next`, leave default name `MyClass`, and click `Create Class`. We need to do this because Unreal requires at least one source file in project. It should trigger compile and open up Visual Studio solution `LandscapeMountains.sln`.
+
+1. Go to your folder for AirSim repo and copy `Unreal\Plugins` folder in to your `LandscapeMountains` folder. This way now your own Unreal project has AirSim plugin.
 
     !!!note
 
         If the AirSim installation is fresh, i.e, hasn't been built before, make sure that you run `build.cmd` from the root directory once before copying `Unreal\Plugins` folder so that `AirLib` files are also included. If you have made some changes in the Blocks environment, make sure to run `update_to_git.bat` from `Unreal\Environments\Blocks` to update the files in `Unreal\Plugins`.
 
-6. Edit the `LandscapeMountains.uproject` so that it looks like this
+1. Edit the `LandscapeMountains.uproject` so that it looks like this
 
     ```json
     {
     	"FileVersion": 3,
-    	"EngineAssociation": "4.24",
+    	"EngineAssociation": "4.27",
     	"Category": "Samples",
     	"Description": "",
     	"Modules": [
@@ -55,8 +59,16 @@ There is no `Epic Games Launcher` for Linux which means that if you need to crea
     	]
     }
     ```
+    
+1. Edit the `Config\DefaultGame.ini` to add the following line at the end:
 
-7. Close Visual Studio and the  `Unreal Editor` and right click the LandscapeMountains.uproject in Windows Explorer and select `Generate Visual Studio Project Files`.  This step detects all plugins and source files in your Unreal project and generates `.sln` file for Visual Studio.
+    ```
+    +MapsToCook=(FilePath="/AirSim/AirSimAssets")
+    ```
+    
+    Doing this forces Unreal to include all necessary AirSim content in packaged builds of your project.
+
+1. Close Visual Studio and the  `Unreal Editor` and right click the LandscapeMountains.uproject in Windows Explorer and select `Generate Visual Studio Project Files`.  This step detects all plugins and source files in your Unreal project and generates `.sln` file for Visual Studio.
 
     ![regen](images/regen_sln.png)
 
@@ -64,21 +76,21 @@ There is no `Epic Games Launcher` for Linux which means that if you need to crea
 
         If the `Generate Visual Studio Project Files` option is missing you may need to reboot your machine for the Unreal Shell extensions to take effect.  If it is still missing then open the LandscapeMountains.uproject in the Unreal Editor and select `Refresh Visual Studio Project` from the `File` menu.
 
-8. Reopen `LandscapeMountains.sln` in Visual Studio, and make sure "DebugGame Editor" and "Win64" build configuration is the active build configuration.
+1. Reopen `LandscapeMountains.sln` in Visual Studio, and make sure "DebugGame Editor" and "Win64" build configuration is the active build configuration.
 
     ![build config](images/vsbuild_config.png)
 
-9. Press `F5` to `run`. This will start the Unreal Editor. The Unreal Editor allows you to edit the environment, assets and other game related settings. First thing you want to do in your environment is set up `PlayerStart` object. In Landscape Mountains environment, `PlayerStart` object already exist and you can find it in the `World Outliner`. Make sure its location is setup as shown. This is where AirSim plugin will create and place the vehicle. If its too high up then vehicle will fall down as soon as you press play giving potentially random behavior
+1. Press `F5` to `run`. This will start the Unreal Editor. The Unreal Editor allows you to edit the environment, assets and other game related settings. First thing you want to do in your environment is set up `PlayerStart` object. In Landscape Mountains environment, `PlayerStart` object already exist and you can find it in the `World Outliner`. Make sure its location is setup as shown. This is where AirSim plugin will create and place the vehicle. If its too high up then vehicle will fall down as soon as you press play giving potentially random behavior
 
     ![lm_player_start_pos.png](images/lm_player_start_pos.png)
 
-10. In `Window/World Settings` as shown below, set the `GameMode Override` to `AirSimGameMode`:
+1. In `Window/World Settings` as shown below, set the `GameMode Override` to `AirSimGameMode`:
 
     ![sim_game_mode.png](images/sim_game_mode.png)
 
-11. Go to 'Edit->Editor Preferences' in Unreal Editor, in the 'Search' box type 'CPU' and ensure that the 'Use Less CPU when in Background' is unchecked. If you don't do this then UE will be slowed down dramatically when UE window loses focus.
+1. Go to 'Edit->Editor Preferences' in Unreal Editor, in the 'Search' box type 'CPU' and ensure that the 'Use Less CPU when in Background' is unchecked. If you don't do this then UE will be slowed down dramatically when UE window loses focus.
 
-12. Be sure to `Save` these edits. Hit the Play button in the Unreal Editor. See [how to use AirSim](https://github.com/Microsoft/AirSim/#how-to-use-it).
+1. Be sure to `Save` these edits. Hit the Play button in the Unreal Editor. See [how to use AirSim](https://github.com/Microsoft/AirSim/#how-to-use-it).
 
 Congratulations! You are now running AirSim in your own Unreal environment.
 
@@ -88,7 +100,7 @@ By default AirSim prompts user for which vehicle to use. You can easily change t
 ## Updating Your Environment to Latest Version of AirSim
 Once you have your environment using above instructions, you should frequently update your local AirSim code to latest version from GitHub. Below are the instructions to do this:
 
-1. First put [clean.bat](https://github.com/Microsoft/AirSim/blob/master/Unreal/Environments/Blocks/clean.bat) (or [clean.sh](https://github.com/Microsoft/AirSim/blob/master/Unreal/Environments/Blocks/clean.sh) for Linux users) in the root folder of your environment. Run this file to clean up all intermediate files in your Unreal project.
+1. First put [clean.bat](https://github.com/Microsoft/AirSim/blob/main/Unreal/Environments/Blocks/clean.bat) (or [clean.sh](https://github.com/Microsoft/AirSim/blob/main/Unreal/Environments/Blocks/clean.sh) for Linux users) in the root folder of your environment. Run this file to clean up all intermediate files in your Unreal project.
 2. Do `git pull` in your AirSim repo followed by `build.cmd` (or `./build.sh` for Linux users).
 3. Replace [your project]/Plugins folder with AirSim/Unreal/Plugins folder.
 4. Right click on your .uproject file and chose "Generate Visual Studio project files" option. This is not required for Linux.

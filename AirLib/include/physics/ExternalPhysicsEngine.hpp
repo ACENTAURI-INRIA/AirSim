@@ -19,42 +19,38 @@ namespace msr
 namespace airlib
 {
 
-class ExternalPhysicsEngine : public PhysicsEngineBase {
-public:
-    ExternalPhysicsEngine()
+    class ExternalPhysicsEngine : public PhysicsEngineBase
     {
-    }
+    public:
+        ExternalPhysicsEngine()
+        {
+        }
 
-    //*** Start: UpdatableState implementation ***//
-    virtual void resetImplementation() override
-    {
+        //*** Start: UpdatableState implementation ***//
+        virtual void resetImplementation() override
+        {
+        }
 
-    }
+        virtual void update() override
+        {
+            PhysicsEngineBase::update();
 
-    virtual void update() override
-    {
-        PhysicsEngineBase::update();
-
-        for (PhysicsBody* body_ptr : *this) {
-            if(!body_ptr->physicsDisabled()) {
+            for (PhysicsBody* body_ptr : *this) {
                 body_ptr->updateKinematics();
                 body_ptr->update();
             }
         }
-
-    }
-    virtual void reportState(StateReporter& reporter) override
-    {
-        for (PhysicsBody* body_ptr : *this) {
-            reporter.writeValue("ExternalPhysicsEngine",true);
-            reporter.writeValue("Is Grounded", body_ptr->isGrounded());
+        virtual void reportState(StateReporter& reporter) override
+        {
+            for (PhysicsBody* body_ptr : *this) {
+                reporter.writeValue("ExternalPhysicsEngine", true);
+                reporter.writeValue("Is Grounded", body_ptr->isGrounded());
+            }
+            //call base
+            UpdatableObject::reportState(reporter);
         }
-        //call base
-        UpdatableObject::reportState(reporter);
-    }
-    //*** End: UpdatableState implementation ***//
-
-};
+        //*** End: UpdatableState implementation ***//
+    };
 
 } //namespace
 } //namespace

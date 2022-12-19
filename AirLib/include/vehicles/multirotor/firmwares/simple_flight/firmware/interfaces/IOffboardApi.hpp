@@ -4,16 +4,17 @@
 #include "CommonStructs.hpp"
 #include "IGoal.hpp"
 
-namespace simple_flight {
+namespace simple_flight
+{
 
-class IOffboardApi : public IGoal {
+class IOffboardApi : public IGoal
+{
 public:
     virtual bool canRequestApiControl(std::string& message) = 0;
     virtual bool hasApiControl() = 0;
     virtual bool requestApiControl(std::string& message) = 0;
     virtual void releaseApiControl() = 0;
     virtual bool setGoalAndMode(const Axis4r* goal, const GoalMode* goal_mode, std::string& message) = 0;
-    virtual void resetGoalAndMode() = 0;
 
     virtual bool arm(std::string& message) = 0;
     virtual bool disarm(std::string& message) = 0;
@@ -27,4 +28,3 @@ public:
 };
 
 } //namespace
-

@@ -12,6 +12,7 @@ import pprint
 {
     "SettingsVersion": 1.2,
     "SimMode": "Both",
+
     "Vehicles": {
         "Car1": {
           "VehicleType": "PhysXCar",
@@ -24,6 +25,7 @@ import pprint
         }
   }
 }
+
 """
 
 # connect to the AirSim simulator

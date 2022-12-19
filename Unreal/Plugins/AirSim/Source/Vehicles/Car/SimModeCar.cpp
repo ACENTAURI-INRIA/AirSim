@@ -25,25 +25,10 @@ void ASimModeCar::initializePauseState()
     pause(false);
 }
 
-bool ASimModeCar::isPaused() const
-{
-    return current_clockspeed_ == 0;
-}
-
-void ASimModeCar::pause(bool is_paused)
-{
-    if (is_paused)
-        current_clockspeed_ = 0;
-    else
-        current_clockspeed_ = getSettings().clock_speed;
-
-    UAirBlueprintLib::setUnrealClockSpeed(this, current_clockspeed_);
-}
-
 void ASimModeCar::continueForTime(double seconds)
 {
     pause_period_start_ = ClockFactory::get()->nowNanos();
-    pause_period_ = seconds;
+    pause_period_ = seconds * current_clockspeed_;
     pause(false);
 }
 
@@ -56,6 +41,8 @@ void ASimModeCar::continueForFrames(uint32_t frames)
 
 void ASimModeCar::setupClockSpeed()
 {
+    Super::setupClockSpeed();
+
     current_clockspeed_ = getSettings().clock_speed;
 
     //setup clock in PhysX
@@ -66,7 +53,10 @@ void ASimModeCar::setupClockSpeed()
 void ASimModeCar::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
-    
+
+    if (!isPaused())
+        ClockFactory::get()->stepBy(DeltaSeconds);
+
     if (pause_period_start_ > 0) {
         if (ClockFactory::get()->elapsedSince(pause_period_start_) >= pause_period_) {
             if (!isPaused())
@@ -76,9 +66,9 @@ void ASimModeCar::Tick(float DeltaSeconds)
         }
     }
 
-    if(frame_countdown_enabled_){
-        if (targetFrameNumber_ <= GFrameNumber){
-            if (! isPaused())
+    if (frame_countdown_enabled_) {
+        if (targetFrameNumber_ <= GFrameNumber) {
+            if (!isPaused())
                 pause(true);
 
             frame_countdown_enabled_ = false;
@@ -88,7 +78,7 @@ void ASimModeCar::Tick(float DeltaSeconds)
 
 //-------------------------------- overrides -----------------------------------------------//
 
-std::vector<std::unique_ptr<msr::airlib::ApiServerBase> > ASimModeCar::createApiServer() const
+std::vector<std::unique_ptr<msr::airlib::ApiServerBase>> ASimModeCar::createApiServer() const
 {
     std::vector<std::unique_ptr<msr::airlib::ApiServerBase>> api_servers;
 #ifdef AIRLIB_NO_RPC
@@ -96,7 +86,7 @@ std::vector<std::unique_ptr<msr::airlib::ApiServerBase> > ASimModeCar::createApi
     return api_servers;
 #else
     api_servers.push_back(std::unique_ptr<msr::airlib::ApiServerBase>(new msr::airlib::CarRpcLibServer(
-        getApiProvider(), getSettings().api_server_address, getSettings().api_port)));
+        getApiProvider(), getSettings().api_server_address)));
     return api_servers;
 #endif
 }
@@ -140,14 +130,14 @@ std::unique_ptr<PawnSimApi> ASimModeCar::createVehicleSimApi(
     const PawnSimApi::Params& pawn_sim_api_params) const
 {
     auto vehicle_pawn = static_cast<TVehiclePawn*>(pawn_sim_api_params.pawn);
-    auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params, 
-        vehicle_pawn->getKeyBoardControls(), vehicle_pawn->getVehicleMovementComponent()));
+    auto vehicle_sim_api = std::unique_ptr<PawnSimApi>(new CarPawnSimApi(pawn_sim_api_params,
+                                                                         vehicle_pawn->getKeyBoardControls()));
     vehicle_sim_api->initialize();
     vehicle_sim_api->reset();
     return vehicle_sim_api;
 }
 msr::airlib::VehicleApiBase* ASimModeCar::getVehicleApi(const PawnSimApi::Params& pawn_sim_api_params,
-    const PawnSimApi* sim_api) const
+                                                        const PawnSimApi* sim_api) const
 {
     const auto car_sim_api = static_cast<const CarPawnSimApi*>(sim_api);
     return car_sim_api->getVehicleApi();

@@ -514,6 +514,8 @@ namespace airlib
             unused(lookahead);
             unused(drivetrain);
 
+            checkValidVehicle();
+
             // save current manual, cruise, and max velocity parameters
             bool result = false;
             mavlinkcom::MavLinkParameter manual_velocity_parameter, cruise_velocity_parameter, max_velocity_parameter;
@@ -590,11 +592,6 @@ namespace airlib
                 return GeoPoint(current_state_.home.global_pos.lat, current_state_.home.global_pos.lon, current_state_.home.global_pos.alt);
             else
                 return GeoPoint(Utils::nan<double>(), Utils::nan<double>(), Utils::nan<float>());
-        }
-
-        virtual void resetPositionGoal() override
-        {
-            addStatusMessage("resetPositionGoal is not defined for MavLink API");
         }
 
         virtual GeoPoint getGpsLocation() const override

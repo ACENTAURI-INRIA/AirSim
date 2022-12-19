@@ -15,12 +15,11 @@ remote_branch: gh-pages
 
 theme:
   name: 'readthedocs'
-  logo:
-    icon: ' '
+  logo: ''
 
 extra:
   highlightjs: true
-  version: 1.3.1
+  version: master
   feature:
       tabs: true
   palette:
@@ -40,16 +39,18 @@ nav:
   - "Home":
     - "Home": 'README.md'
   - "Changelog": 'CHANGELOG.md'
-  - "Get AirSim":
+  - "Building AirSim":
     - "Download Binaries": 'use_precompiled.md'
     - "Build on Windows": 'build_windows.md'
     - "Build on Linux": 'build_linux.md'
+    - "Build on macOS": 'build_macos.md'
     - "Docker on Linux": 'docker_ubuntu.md'
     - "AirSim on Azure": 'azure.md'
     - "Custom Unreal Environment": 'unreal_custenv.md'
     - "AirSim with Unity": "Unity.md"
     - "Custom Unity Environment": "custom_unity_environments.md"
     - "Unity APIs": "unity_api_support.md"
+    - "FAQ": 'build_faq.md'
   - "Using AirSim":
     - "Core APIs": 'apis.md'
     - "Image APIs": 'image_apis.md'
@@ -70,6 +71,7 @@ nav:
       - "Infrared Camera": "InfraredCamera.md"
     - "ROS: AirSim ROS Wrapper": "airsim_ros_pkgs.md"
     - "ROS: AirSim Tutorial Packages": "airsim_tutorial_pkgs.md"
+    - "Import Gazebo models": "gazebo_drone.md"
     - "Domain Randomization": "retexturing.md"
     - "Mesh Vertex Buffers": "meshes.md"
     - "Playing Logs": 'playback.md'
@@ -78,6 +80,8 @@ nav:
   - "Design":
     - "Architecture": 'design.md'
     - "Code Structure": 'code_structure.md'
+    - "Adding new APIs": 'adding_new_apis.md'
+    - "Modifying Recording Data": 'modify_recording_data.md'
     - "Coding Guidelines": 'coding_guidelines.md'
     - "Flight Controller": 'flight_controller.md'
     - "Simple Flight": 'simple_flight.md'
@@ -117,6 +121,8 @@ nav:
     - "Surveying Using Drone": 'drone_survey.md'
     - "Orbit Trajectory": "orbit.md"
     - "Importing a custom multirotor mesh": 'https://youtu.be/Bp86WiLUC80'
+    - "Object Detection": "object_detection.md"
+    - "AirSim with MAVROS and PX4": 'https://youtu.be/ZonkdMcwXH4'
   - "Misc":
     - "AirSim on Real Drones": 'custom_drone.md'
     - "Installing cmake on Linux": 'cmake_linux.md'

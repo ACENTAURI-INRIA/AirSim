@@ -7,9 +7,8 @@
 using namespace msr::airlib;
 
 CarPawnSimApi::CarPawnSimApi(const Params& params,
-    const msr::airlib::CarApiBase::CarControls& keyboard_controls, UWheeledVehicleMovementComponent* movement)
-    : PawnSimApi(params), params_(params),
-      keyboard_controls_(keyboard_controls)
+                             const msr::airlib::CarApiBase::CarControls& keyboard_controls)
+    : PawnSimApi(params), keyboard_controls_(keyboard_controls)
 {
 }
 
@@ -17,20 +16,17 @@ void CarPawnSimApi::initialize()
 {
     PawnSimApi::initialize();
 
-    createVehicleApi(static_cast<ACarPawn*>(params_.pawn), params_.home_geopoint);
-
-    //TODO: should do reset() here?
-    joystick_controls_ = msr::airlib::CarApiBase::CarControls();
-}
-
-void CarPawnSimApi::createVehicleApi(ACarPawn* pawn, const msr::airlib::GeoPoint& home_geopoint)
-{
     //create vehicle params
     std::shared_ptr<UnrealSensorFactory> sensor_factory = std::make_shared<UnrealSensorFactory>(getPawn(), &getNedTransform());
 
-    vehicle_api_ = CarApiFactory::createApi(getVehicleSetting(), sensor_factory, (*getGroundTruthKinematics()),
-                                            (*getGroundTruthEnvironment()), home_geopoint);
-    pawn_api_ = std::unique_ptr<CarPawnApi>(new CarPawnApi(pawn, getGroundTruthKinematics(), vehicle_api_.get()));
+    vehicle_api_ = CarApiFactory::createApi(getVehicleSetting(),
+                                            sensor_factory,
+                                            *getGroundTruthKinematics(),
+                                            *getGroundTruthEnvironment());
+    pawn_api_ = std::unique_ptr<CarPawnApi>(new CarPawnApi(static_cast<ACarPawn*>(getPawn()), getGroundTruthKinematics(), vehicle_api_.get()));
+
+    //TODO: should do reset() here?
+    joystick_controls_ = msr::airlib::CarApiBase::CarControls();
 }
 
 std::string CarPawnSimApi::getRecordFileLine(bool is_header_line) const
@@ -75,7 +71,7 @@ void CarPawnSimApi::updateRendering(float dt)
     try {
         vehicle_api_->sendTelemetry(dt);
     }
-    catch (std::exception &e) {
+    catch (std::exception& e) {
         UAirBlueprintLib::LogMessage(FString(e.what()), TEXT(""), LogDebugLevel::Failure, 30);
     }
 }
@@ -104,10 +100,8 @@ void CarPawnSimApi::updateCarControls()
             joystick_controls_.brake = rc_data.throttle;
 
             auto car_state = vehicle_api_->getCarState();
-            float rumble_strength = 0.66 + (car_state.rpm
-                / car_state.maxrpm) / 3;
-            float auto_center = (1.0 - 1.0 / (std::abs(car_state.speed / 120) + 1.0))
-            * (rc_data.yaw / 3);
+            float rumble_strength = 0.66 + (car_state.rpm / car_state.maxrpm) / 3;
+            float auto_center = (1.0 - 1.0 / (std::abs(car_state.speed / 120) + 1.0)) * (rc_data.yaw / 3);
             setRCForceFeedback(rumble_strength, auto_center);
         }
         // Anything else, typically Logitech G920 wheel
@@ -171,5 +165,11 @@ void CarPawnSimApi::update()
     PawnSimApi::update();
 }
 
-//*** End: UpdatableState implementation ***//
+void CarPawnSimApi::reportState(StateReporter& reporter)
+{
+    PawnSimApi::reportState(reporter);
 
+    vehicle_api_->reportState(reporter);
+}
+
+//*** End: UpdatableState implementation ***//
