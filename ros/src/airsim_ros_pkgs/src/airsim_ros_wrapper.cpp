@@ -1524,7 +1524,7 @@ cv::Mat AirsimROSWrapper::manual_decode_depth(const ImageResponse& img_response)
     return mat;
 }
 
-sensor_msgs::ImagePtr AirsimROSWrapper::get_img_msg_from_response(const ImageResponse& img_response,
+sensor_msgs::ImagePtr AirsimROSWrapper::get_lidar_msg_from_airsim(const ImageResponse& img_response,
                                                                   const ros::Time curr_ros_time,
                                                                   const std::string frame_id)
 {

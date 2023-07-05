@@ -116,7 +116,8 @@ public:
     enum class AIRSIM_MODE : unsigned
     {
         DRONE,
-        CAR
+        CAR,
+        BOTH
     };
 
     AirsimROSWrapper(const std::shared_ptr<rclcpp::Node> nh, const std::shared_ptr<rclcpp::Node> nh_img, const std::shared_ptr<rclcpp::Node> nh_lidar, const std::string& host_ip);
@@ -129,12 +130,16 @@ public:
     bool is_used_img_timer_cb_queue_;
 
 private:
+    static constexpr char const* kVehicleClassDrone = "drone";
+    static constexpr char const* kVehicleClassCar = "car";
+    static constexpr char const* kVehicleClassCV = "cv";
     // utility struct for a SINGLE robot
     class VehicleROS
     {
     public:
         virtual ~VehicleROS() {}
         std::string vehicle_name_;
+        std::string vehicle_type_;
 
         /// All things ROS
         rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_local_pub_;
@@ -268,6 +273,9 @@ private:
     sensor_msgs::msg::NavSatFix get_gps_msg_from_airsim(const msr::airlib::GpsBase::Output& gps_data) const;
     sensor_msgs::msg::MagneticField get_mag_msg_from_airsim(const msr::airlib::MagnetometerBase::Output& mag_data) const;
     airsim_interfaces::msg::Environment get_environment_msg_from_airsim(const msr::airlib::Environment::State& env_data) const;
+    std::string get_vehicle_class(const VehicleROS& vehicle_) const;
+    std::string get_vehicle_class(const std::string& vehicle_type_) const;
+
     msr::airlib::GeoPoint get_origin_geo_point() const;
     VelCmd get_airlib_world_vel_cmd(const airsim_interfaces::msg::VelCmd& msg) const;
     VelCmd get_airlib_body_vel_cmd(const airsim_interfaces::msg::VelCmd& msg, const msr::airlib::Quaternionr& airlib_quat) const;
@@ -309,7 +317,9 @@ private:
     bool is_vulkan_; // rosparam obtained from launch file. If vulkan is being used, we BGR encoding instead of RGB
 
     std::string host_ip_;
-    std::unique_ptr<msr::airlib::RpcLibClientBase> airsim_client_;
+    std::unique_ptr<msr::airlib::RpcLibClientBase> airsim_client_drones_;
+    std::unique_ptr<msr::airlib::RpcLibClientBase> airsim_client_cars_;
+
     // seperate busy connections to airsim, update in their own thread
     msr::airlib::RpcLibClientBase airsim_client_images_;
     msr::airlib::RpcLibClientBase airsim_client_lidar_;
