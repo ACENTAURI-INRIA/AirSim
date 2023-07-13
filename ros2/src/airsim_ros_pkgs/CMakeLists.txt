@@ -17,6 +17,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(mavros_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_typesupport_cpp REQUIRED)
 find_package(rosidl_default_runtime REQUIRED)
@@ -88,6 +89,8 @@ ament_target_dependencies(pd_position_controller_simple_node
   rclcpp
 )
 
+
+
 # rosidl_target_interfaces(airsim_node
 # ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
@@ -107,7 +110,13 @@ install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 install(DIRECTORY launch rviz DESTINATION share/${PROJECT_NAME})
 
-
+# Install Python modules
+ament_python_install_package(${PROJECT_NAME})
+# Install Python executables
+install(PROGRAMS
+  scripts/car_joy
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 ament_export_dependencies(rclcpp)
 ament_export_dependencies(nav_msgs)
